@@ -77,17 +77,29 @@ export function tagEditor(el, { id, tags, onChange, compact = false }) {
     // Picking from the autocomplete list commits immediately.
     input.oninput = (e) => { if (e.inputType === "insertReplacementText" || e.inputType == null) finish(true); };
   };
-  const commit = async (next) => {
-    const before = current;
+  // Saves run one at a time, in order. Edits made while a save is in flight are queued, and only
+  // the newest one is sent next, so an older response can never overwrite a newer edit.
+  let confirmed = [...tags], saving = false, queued = null;
+  const commit = (next) => {
     current = next; render();
-    try {
-      const r = await saveTags(id, next);
-      current = r.tags; render();
-      onChange?.(current);
-      refreshTagSuggestions();
-    } catch { current = before; render(); }
+    queued = next;
+    if (!saving) flush();
+  };
+  const flush = async () => {
+    saving = true;
+    while (queued) {
+      const want = queued; queued = null;
+      try {
+        const r = await saveTags(id, want);
+        confirmed = r.tags;
+        if (!queued) { current = r.tags; render(); onChange?.(current); refreshTagSuggestions(); }
+      } catch {
+        if (!queued) { current = [...confirmed]; render(); }
+      }
+    }
+    saving = false;
   };
   el.onclick = (e) => e.stopPropagation();
   render();
-  return { set(t) { current = [...t]; render(); } };
+  return { set(t) { current = [...t]; confirmed = [...t]; render(); } };
 }
