@@ -192,7 +192,11 @@ class SyncManager:
     def incremental(self) -> int:
         newest = self.db.q("SELECT MAX(civil_date) d FROM workouts")[0]["d"]
         if not newest:
-            return 0  # nothing stored yet: backfill starts from the newest anyway
+            # Nothing stored yet (first run, or the account had no workouts last time):
+            # (re)start the backfill from the newest workout so a first workout is always found.
+            self.db.kv_set("backfill_complete", False)
+            self.db.kv_set("backfill_before", None)
+            return 0
         since = add_days(newest, -RECENT_REFETCH_DAYS)
         token, n = None, 0
         while True:

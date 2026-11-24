@@ -137,3 +137,12 @@ def test_no_workouts_yet():
     assert s.state["error"] is None
     assert count(db) == 0
     assert db.kv_get("backfill_complete") is True
+
+
+def test_first_workout_found_after_an_empty_first_sync():
+    g, db, s = make(0)
+    s.run()
+    assert db.kv_get("backfill_complete") is True
+    g.workouts.append(exercise(1, BASE + 3600))
+    s.run()
+    assert count(db) == 1 and count(db, "hr_status='ok'") == 1

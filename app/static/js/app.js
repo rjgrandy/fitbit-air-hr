@@ -20,6 +20,7 @@ let visibleList = [];              // after filters
 const rows = new Map();            // id -> { el, w, chart }
 const hrCache = new Map();         // id -> hr payload
 let lastStatus = null;
+let currentTz = null;
 
 async function api(path, opts = {}) {
   const r = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
@@ -262,7 +263,11 @@ async function refreshStatus() {
   let st;
   try { st = await api("/api/status"); } catch (e) { showBanner("error", `Can't reach the app server: ${e.message}`); return; }
   lastStatus = st;
-  setTimeZone(st.tz);
+  if (st.tz !== currentTz) {
+    currentTz = st.tz;
+    setTimeZone(st.tz);
+    for (const r of rows.values()) fillHead(r.el, r.w);
+  }
   if (JSON.stringify(st.settings) !== JSON.stringify(settings)) {
     settings = st.settings;
     rerenderAllCharts();
@@ -438,8 +443,9 @@ function initControls() {
 // ------------------------------------------------------------------ boot ----
 (async function boot() {
   initControls();
-  try { await loadWorkouts(); } catch (e) { showBanner("error", `Can't load workouts: ${e.message}`); }
   const st = await api("/api/status").catch(() => null);
+  if (st) { currentTz = st.tz; setTimeZone(st.tz); settings = st.settings; }  // before the first render
+  try { await loadWorkouts(); } catch (e) { showBanner("error", `Can't load workouts: ${e.message}`); }
   if (st?.auth === "ok" && !st.sync.running) await api("/api/sync", { method: "POST" }).catch(() => {});
   refreshStatus();
 })();
