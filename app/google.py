@@ -5,6 +5,8 @@ Endpoints, data types and scopes were confirmed against the v4 discovery documen
   exercise               -> googlehealth.activity_and_fitness.readonly
   heart-rate             -> googlehealth.health_metrics_and_measurements.readonly
   daily-heart-rate-zones -> googlehealth.health_metrics_and_measurements.readonly
+  oxygen-saturation      -> googlehealth.health_metrics_and_measurements.readonly
+  daily-oxygen-saturation-> googlehealth.health_metrics_and_measurements.readonly
 Only GET requests are ever made to health.googleapis.com.
 """
 from __future__ import annotations
@@ -266,6 +268,18 @@ class GoogleHealth:
         flt = (f'daily_heart_rate_zones.date >= "{date_from}" AND '
                f'daily_heart_rate_zones.date < "{date_to_exclusive}"')
         return self._all("daily-heart-rate-zones", {"filter": flt, "pageSize": 1000})
+
+    def oxygen_saturation(self, start_rfc3339: str, end_rfc3339: str) -> list[dict]:
+        """Per-minute SpO2 samples (recorded while asleep)."""
+        flt = (f'oxygen_saturation.sample_time.physical_time >= "{start_rfc3339}" AND '
+               f'oxygen_saturation.sample_time.physical_time < "{end_rfc3339}"')
+        return self._all("oxygen-saturation", {"filter": flt, "pageSize": 10000})
+
+    def daily_oxygen_saturation(self, date_from: str, date_to_exclusive: str) -> list[dict]:
+        """Google's nightly SpO2 summary (average and range), one point per date."""
+        flt = (f'daily_oxygen_saturation.date >= "{date_from}" AND '
+               f'daily_oxygen_saturation.date < "{date_to_exclusive}"')
+        return self._all("daily-oxygen-saturation", {"filter": flt, "pageSize": 1000})
 
     def _all(self, data_type: str, params: dict) -> list[dict]:
         out, token = [], None

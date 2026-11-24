@@ -59,6 +59,24 @@ CREATE TABLE IF NOT EXISTS workout_tags (
 );
 CREATE INDEX IF NOT EXISTS workout_tags_tag ON workout_tags(tag);
 
+-- Per-minute SpO2 samples from Google (recorded while asleep). `night` is the local date the
+-- sleep ends on (samples after 18:00 local count towards the next day), matching Google's daily summary.
+CREATE TABLE IF NOT EXISTS spo2_samples (
+    ts     INTEGER PRIMARY KEY,          -- UTC epoch seconds
+    pct    REAL NOT NULL,
+    night  TEXT NOT NULL                 -- 'YYYY-MM-DD'
+);
+CREATE INDEX IF NOT EXISTS spo2_samples_night ON spo2_samples(night);
+
+-- Google's daily SpO2 summary (average and confidence range during sleep), one row per local date.
+CREATE TABLE IF NOT EXISTS spo2_daily (
+    date      TEXT PRIMARY KEY,
+    avg_pct   REAL,
+    lower_pct REAL,
+    upper_pct REAL,
+    sd_pct    REAL
+);
+
 CREATE TABLE IF NOT EXISTS kv (
     key   TEXT PRIMARY KEY,
     value TEXT
@@ -219,6 +237,45 @@ class DB:
         for r in self.q("SELECT workout_id, tag FROM workout_tags ORDER BY tag"):
             tags.setdefault(r["workout_id"], []).append(r["tag"])
         return pins, tags
+
+    # ---- SpO2 ----
+    def replace_spo2_samples(self, start_ts: int, end_ts: int, rows: list[tuple[int, float, str]]) -> None:
+        """Make [start_ts, end_ts) match Google exactly: drop what's there, insert what was fetched."""
+        with self.lock:
+            self.conn.execute("BEGIN")
+            try:
+                self.conn.execute("DELETE FROM spo2_samples WHERE ts >= ? AND ts < ?", (start_ts, end_ts))
+                self.conn.executemany("INSERT OR REPLACE INTO spo2_samples(ts,pct,night) VALUES(?,?,?)", rows)
+                self.conn.execute("COMMIT")
+            except Exception:
+                self.conn.execute("ROLLBACK")
+                raise
+
+    def upsert_spo2_daily(self, rows: list[dict]) -> None:
+        with self.lock:
+            self.conn.executemany(
+                """INSERT INTO spo2_daily(date,avg_pct,lower_pct,upper_pct,sd_pct)
+                   VALUES(:date,:avg_pct,:lower_pct,:upper_pct,:sd_pct)
+                   ON CONFLICT(date) DO UPDATE SET avg_pct=excluded.avg_pct, lower_pct=excluded.lower_pct,
+                       upper_pct=excluded.upper_pct, sd_pct=excluded.sd_pct""", rows)
+
+    def spo2_nights(self, low_pct: float = 90) -> list[dict]:
+        """One row per night that has samples or a daily summary, newest first."""
+        rows = self.q(
+            """SELECT night, MIN(ts) start_ts, MAX(ts) end_ts, COUNT(*) sample_count,
+                      ROUND(AVG(pct), 1) avg_pct, MIN(pct) min_pct, MAX(pct) max_pct,
+                      SUM(pct < ?) low_count
+               FROM spo2_samples GROUP BY night""", (low_pct,))
+        nights = {r["night"]: {**dict(r), "daily": None} for r in rows}
+        for d in self.q("SELECT * FROM spo2_daily"):
+            n = nights.setdefault(d["date"], {"night": d["date"], "start_ts": None, "end_ts": None,
+                                              "sample_count": 0, "avg_pct": None, "min_pct": None,
+                                              "max_pct": None, "low_count": 0})
+            n["daily"] = {k: d[k] for k in ("avg_pct", "lower_pct", "upper_pct", "sd_pct")}
+        return sorted(nights.values(), key=lambda n: n["night"], reverse=True)
+
+    def spo2_samples(self, night: str) -> list[tuple[int, float]]:
+        return [(r["ts"], r["pct"]) for r in self.q("SELECT ts, pct FROM spo2_samples WHERE night=? ORDER BY ts", (night,))]
 
     def workout(self, workout_id: str) -> dict | None:
         r = self.q("SELECT * FROM workouts WHERE id=?", (workout_id,))

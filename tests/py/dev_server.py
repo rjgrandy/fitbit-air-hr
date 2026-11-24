@@ -6,6 +6,7 @@ import math
 import random
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -33,6 +34,27 @@ class DemoGoogle(FakeGoogle):
             t -= rnd.randint(9, 60) * 3600
             self.workouts.append(exercise(i, t, minutes=mins, kind=kind))
         self.rnd = rnd
+        # ~90 nights of per-minute SpO2 (with dropped minutes and the odd dip) plus Google's summary.
+        import datetime as dt
+        for k in range(90):
+            if rnd.random() < 0.08:
+                continue  # band not worn
+            bed = int(time.time()) // 86400 * 86400 + 4 * 3600 - (k + 1) * 86400 + rnd.randint(-5400, 3600)  # ~22:00 Chicago
+            mins = rnd.randint(330, 520)
+            base = rnd.uniform(94.0, 97.0)
+            vals = []
+            for m in range(mins):
+                if rnd.random() < 0.12 or (k % 7 == 3 and 120 < m < 160):
+                    continue  # unreliable minutes are dropped by Google
+                v = base + 1.2 * math.sin(m / 50) + rnd.uniform(-1, 1)
+                if k % 5 == 1 and 200 < m < 206:
+                    v -= 7
+                v = round(min(100, v), 1)
+                self.spo2.append((bed + m * 60, v))
+                vals.append(v)
+            d = dt.datetime.fromtimestamp(bed + mins * 60 - 6 * 3600, dt.timezone.utc).date().isoformat()
+            avg = sum(vals) / len(vals)
+            self.spo2_daily[d] = (round(avg, 1), round(avg - 2.1, 1), round(min(100, avg + 1.9), 1))
 
     def was_revoked(self):
         return False

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>SpO2 · Fitbit Air HR</title>
+<link rel="stylesheet" href="vendor/uPlot.min.css">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/spo2.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>Nightly SpO2</h1>
+  <div class="sync">
+    <span id="syncLabel" class="muted">…</span>
+    <button id="syncNow" class="btn small">Sync now</button>
+  </div>
+  <nav class="links">
+    <a href="./" class="btn small ghost">Workouts</a>
+    <a href="live.html" class="btn small ghost">Live</a>
+  </nav>
+</header>
+
+<div id="progress" class="progress" hidden><div class="bar indeterminate"><span></span></div><div class="msg"></div></div>
+<div id="banner" class="banner" hidden></div>
+
+<section class="trend" id="trend" hidden>
+  <div class="trend-head">
+    <h2>Nightly average</h2>
+    <div class="legend muted small">
+      <span class="item"><span class="sw line"></span>Average</span>
+      <span class="item"><span class="sw range"></span>Google's range</span>
+      <span class="item"><span class="sw low"></span><span>Below <span class="lowPct">90</span>%</span></span>
+    </div>
+  </div>
+  <div id="trendChart" class="trend-chart"><div class="tip" hidden></div></div>
+</section>
+
+<section class="controls" aria-label="Filters and display">
+  <label>From <input type="date" id="fFrom"></label>
+  <label>To <input type="date" id="fTo"></label>
+  <button id="fClear" class="btn small ghost">Clear dates</button>
+  <div class="seg" role="group" aria-label="X axis">
+    <button data-axis="shared" class="seg-btn" title="Every row shows the same clock times">Same clock</button>
+    <button data-axis="fit" class="seg-btn" title="Each row spans its own night">Fit to width</button>
+  </div>
+  <label class="slider">Row height
+    <input type="range" id="rowH" min="40" max="320" step="10">
+  </label>
+  <a href="api/spo2/export.csv" class="btn small ghost" download>Export CSV</a>
+</section>
+
+<div id="count" class="muted count"></div>
+<main id="list" class="list"></main>
+<div id="empty" class="empty" hidden></div>
+
+<template id="rowTpl">
+  <article class="row spo2-row">
+    <div class="row-head">
+      <span class="date" title="The date you woke up, like the Fitbit app"></span>
+      <span class="time muted"></span>
+      <span class="stat avg"></span>
+      <span class="stat min"></span>
+      <span class="stat range"></span>
+      <span class="stat lowmin"></span>
+    </div>
+    <div class="chart"><div class="placeholder muted"></div><div class="tip" hidden></div></div>
+  </article>
+</template>
+
+<script type="module" src="js/spo2.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+:root { --spo2-low: #ef4444; --spo2-range: #38bdf8; --spo2-avg: #6b7280; }
+@media (prefers-color-scheme: dark) { :root { --spo2-avg: #9aa0a6; } }
+
+.trend { margin: 12px 16px 0; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+.trend-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-bottom: 4px; }
+.trend-head h2 { font-size: .95rem; margin: 0; }
+.trend .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.trend .legend .item { display: inline-flex; align-items: center; gap: 5px; }
+.trend .legend .sw { display: inline-block; width: 14px; height: 8px; border-radius: 2px; }
+.trend .legend .sw.line { height: 3px; background: var(--line); }
+.trend .legend .sw.range { background: var(--spo2-range); opacity: .35; }
+.trend .legend .sw.low { background: var(--spo2-low); opacity: .3; }
+.trend-chart { position: relative; height: 170px; }
+.trend-chart .tip, .spo2-row .tip { position: absolute; top: 2px; transform: translateX(-50%); pointer-events: none; z-index: 2;
+  white-space: nowrap; background: var(--fg); color: var(--bg); font-size: .75rem; padding: 2px 6px; border-radius: 6px;
+  font-variant-numeric: tabular-nums; }
+
+.spo2-row .row-head { cursor: default; }
+.spo2-row .stat.lowmin.bad b { color: var(--spo2-low); }
+.spo2-row.selected { border-color: var(--accent); }

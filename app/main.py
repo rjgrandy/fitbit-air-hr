@@ -162,6 +162,42 @@ def create_app(db: DB | None = None, client: GoogleHealth | None = None) -> Fast
     def get_tags():
         return db.all_tags()
 
+    # ------------------------------------------------------------ SpO2 ----
+    @app.get("/api/spo2")
+    def spo2_nights():
+        """Nights newest first: stats from the per-minute samples plus Google's nightly summary."""
+        nights = db.spo2_nights(config.SPO2_LOW_PCT)
+        tz = ZoneInfo(config.DISPLAY_TZ)
+        for n in nights:
+            # 18:00 local the evening before: the zero point of the night's clock-time x axis.
+            n["anchor_ts"] = int((dt.datetime.combine(dt.date.fromisoformat(n["night"]), dt.time(0), tz)
+                                  - dt.timedelta(hours=6)).timestamp())
+            # Samples are one per minute, so the count of low samples is minutes below the threshold.
+            n["low_minutes"] = n.pop("low_count") or 0
+        return {"nights": nights, "low_pct": config.SPO2_LOW_PCT, "gap_seconds": config.SPO2_GAP_SECONDS,
+                "error": db.kv_get("spo2_error"),
+                "backfill_complete": bool(db.kv_get("spo2_backfill_complete", False))}
+
+    @app.get("/api/spo2/samples")
+    def spo2_samples(nights: str = Query(..., description="comma-separated night dates (max 50)")):
+        res = {}
+        for night in nights.split(",")[:50]:
+            samples = db.spo2_samples(night)
+            res[night] = {"ts": [t for t, _ in samples], "pct": [p for _, p in samples]}
+        return JSONResponse(res)
+
+    @app.get("/api/spo2/export.csv")
+    def spo2_export():
+        tz = ZoneInfo(config.DISPLAY_TZ)
+        buf = io.StringIO()
+        wr = csv.writer(buf)
+        wr.writerow(["night", "time_utc", "time_local", "spo2_pct"])
+        for r in db.q("SELECT ts, pct, night FROM spo2_samples ORDER BY ts"):
+            utc = dt.datetime.fromtimestamp(r["ts"], dt.timezone.utc)
+            wr.writerow([r["night"], utc.strftime("%Y-%m-%dT%H:%M:%SZ"), utc.astimezone(tz).isoformat(), r["pct"]])
+        return Response(buf.getvalue(), media_type="text/csv",
+                        headers={"Content-Disposition": 'attachment; filename="spo2-samples.csv"'})
+
     def export_rows(w: dict):
         tz = ZoneInfo(config.DISPLAY_TZ)
         for t, b in db.samples(w["id"]):

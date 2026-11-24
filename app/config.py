@@ -16,3 +16,9 @@ POST_WORKOUT_SECONDS = 180
 # Consecutive samples further apart than this are treated as a gap: the chart line breaks
 # and the time is not counted towards any zone.
 GAP_SECONDS = 30
+
+# SpO2: minutes below this are counted as "low" and shaded on the charts.
+SPO2_LOW_PCT = 90
+# SpO2 samples are one a minute; further apart than this breaks the line (the band drops
+# minutes it can't read reliably, so short gaps are normal).
+SPO2_GAP_SECONDS = 600
