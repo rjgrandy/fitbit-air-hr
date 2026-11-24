@@ -10,6 +10,9 @@ revoked token) picks up where it stopped next time:
 3. Zones: fetch Google's daily HR zones for the dates workouts need, and snapshot
    the zones in effect onto each workout.
 4. Heart rate: fetch raw HR samples for every workout still marked 'pending'.
+5. SpO2: fetch per-minute oxygen saturation and Google's nightly summary, newest first,
+   then page backwards in 30-day chunks until 120 days in a row have no data. A failure
+   here is recorded for the SpO2 page and never blocks the workout sync.
 """
 from __future__ import annotations
 
@@ -21,12 +24,17 @@ import time
 import traceback
 
 from . import zones as Z
-from .config import POST_WORKOUT_SECONDS
+from zoneinfo import ZoneInfo
+
+from .config import DISPLAY_TZ, POST_WORKOUT_SECONDS
 from .db import DB
 from .google import ApiError, AuthRequired, GoogleHealth, RateLimited
 
 RECENT_REFETCH_DAYS = 3        # re-check workouts and HR this far back on every sync (late band uploads)
 HR_SETTLE_SECONDS = 6 * 3600   # HR fetched sooner than this after a workout ended is fetched again later
+SPO2_CHUNK_DAYS = 30           # SpO2 is fetched in windows this long (~500 samples a night)
+SPO2_STOP_AFTER_EMPTY = 4      # backfill stops after this many empty windows in a row
+NIGHT_SHIFT_HOURS = 6          # samples from 18:00 local onwards belong to the next day's night
 
 
 # ---------------------------------------------------------------- parsing ----
@@ -111,6 +119,49 @@ def parse_hr_points(points: list[dict]) -> list[tuple[int, int]]:
     return sorted(seen.items())
 
 
+def night_of(ts: float, offset_s: int | None, tz: str = DISPLAY_TZ) -> str:
+    """The local date a night's sleep ends on. Uses the sample's own UTC offset when given
+    (correct while travelling), else the display time zone."""
+    if offset_s is not None:
+        local = dt.datetime.fromtimestamp(ts + offset_s, dt.timezone.utc)
+    else:
+        local = dt.datetime.fromtimestamp(ts, ZoneInfo(tz))
+    return (local + dt.timedelta(hours=NIGHT_SHIFT_HOURS)).date().isoformat()
+
+
+def parse_spo2_points(points: list[dict]) -> list[tuple[int, float, str]]:
+    seen: dict[int, tuple[float, str]] = {}
+    for p in points:
+        o = p.get("oxygenSaturation") or {}
+        st = o.get("sampleTime") or {}
+        try:
+            t = int(parse_ts(st["physicalTime"]))
+            pct = float(o["percentage"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        if 50 <= pct <= 100:
+            off = parse_duration(st.get("utcOffset")) if st.get("utcOffset") else None
+            seen[t] = (round(pct, 1), night_of(t, off))
+    return [(t, pct, night) for t, (pct, night) in sorted(seen.items())]
+
+
+def parse_spo2_daily(points: list[dict]) -> list[dict]:
+    out = []
+    for p in points:
+        o = p.get("dailyOxygenSaturation") or {}
+        d = o.get("date")
+        if not d or o.get("averagePercentage") is None:
+            continue
+
+        def num(k):
+            v = o.get(k)
+            return round(float(v), 1) if v not in (None, "") else None
+        out.append({"date": f"{d['year']:04d}-{d['month']:02d}-{d['day']:02d}",
+                    "avg_pct": num("averagePercentage"), "lower_pct": num("lowerBoundPercentage"),
+                    "upper_pct": num("upperBoundPercentage"), "sd_pct": num("standardDeviationPercentage")})
+    return out
+
+
 def zones_date(dp: dict) -> str | None:
     d = (dp.get("dailyHeartRateZones") or {}).get("date")
     return f"{d['year']:04d}-{d['month']:02d}-{d['day']:02d}" if d else None
@@ -140,6 +191,8 @@ class SyncManager:
                 "last_synced_at": self.db.kv_get("last_synced_at"),
                 "backfill_complete": bool(self.db.kv_get("backfill_complete", False)),
                 "workout_count": self.db.q("SELECT COUNT(*) c FROM workouts")[0]["c"],
+                "spo2_error": self.db.kv_get("spo2_error"),
+                "spo2_backfill_complete": bool(self.db.kv_get("spo2_backfill_complete", False)),
                 "hr_pending": self.db.q("SELECT COUNT(*) c FROM workouts WHERE hr_status='pending'")[0]["c"]}
 
     def start(self) -> bool:
@@ -167,6 +220,8 @@ class SyncManager:
             self.sync_zones()
             self._phase("heart rate", "Loading heart-rate samples…")
             self.fetch_heart_rate()
+            self._phase("spo2", "Loading SpO2…")
+            self.sync_spo2()
             self.db.kv_set("last_synced_at", self.now())
             self._phase(None, "")
         except AuthRequired as e:
@@ -295,3 +350,50 @@ class SyncManager:
             samples = parse_hr_points(points)
             self.db.save_samples(w["id"], samples, Z.sample_stats(samples, w["start_ts"], w["end_ts"]), self.now())
             self.state["done"] = i + 1
+
+    # ---- 5. SpO2 ----
+    def sync_spo2(self) -> None:
+        """Errors other than auth/rate limits are kept for the SpO2 page instead of failing the sync."""
+        try:
+            self._spo2_recent()
+            self._spo2_backfill()
+            self.db.kv_set("spo2_error", None)
+        except (AuthRequired, RateLimited):
+            raise
+        except ApiError as e:
+            self.db.kv_set("spo2_error", e.friendly)
+
+    def _spo2_window(self, a: int, b: int) -> int:
+        """Fetch samples and daily summaries for [a, b) and store them. Returns the sample count."""
+        rows = parse_spo2_points(self.client.oxygen_saturation(rfc3339(a), rfc3339(b)))
+        d0 = dt.datetime.fromtimestamp(a, dt.timezone.utc).date().isoformat()
+        d1 = dt.datetime.fromtimestamp(b, dt.timezone.utc).date().isoformat()
+        daily = parse_spo2_daily(self.client.daily_oxygen_saturation(add_days(d0, -1), add_days(d1, 2)))
+        self.db.replace_spo2_samples(a, b, rows)
+        self.db.upsert_spo2_daily(daily)
+        return len(rows) + len(daily)
+
+    def _spo2_recent(self) -> None:
+        now = self.now()
+        have_to = self.db.kv_get("spo2_synced_to")
+        a = have_to - RECENT_REFETCH_DAYS * 86400 if have_to else now - SPO2_CHUNK_DAYS * 86400
+        if not have_to:
+            self.db.kv_set("spo2_synced_from", a)
+        while a < now:
+            b = min(a + SPO2_CHUNK_DAYS * 86400, now)
+            self._spo2_window(a, b)
+            self.db.kv_set("spo2_synced_to", b)
+            a = b
+
+    def _spo2_backfill(self) -> None:
+        while not self.db.kv_get("spo2_backfill_complete", False):
+            b = self.db.kv_get("spo2_synced_from")
+            a = b - SPO2_CHUNK_DAYS * 86400
+            self.state["message"] = ("Loading SpO2 history… back to "
+                                     + dt.datetime.fromtimestamp(a, dt.timezone.utc).date().isoformat())
+            n = self._spo2_window(a, b)
+            empty = 0 if n else self.db.kv_get("spo2_empty_windows", 0) + 1
+            self.db.kv_set("spo2_empty_windows", empty)
+            self.db.kv_set("spo2_synced_from", a)
+            if empty >= SPO2_STOP_AFTER_EMPTY:
+                self.db.kv_set("spo2_backfill_complete", True)

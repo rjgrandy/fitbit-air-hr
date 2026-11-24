@@ -3,6 +3,7 @@
 A self-hosted, single-user web app for the heart rate from your Google Fitbit Air workouts.
 
 - **History.** Every workout, newest first, each with a heart-rate chart over faint zone bands and a time-in-zone bar. Tap one for a zoomable chart, the zone breakdown, recovery heart rate, overlays of past workouts, and CSV/JSON/PNG export. Pin workouts and tag them.
+- **SpO2.** Your nightly blood-oxygen readings: a trend of nightly averages with Google's range, then one row per night with the per-minute SpO2 chart over clock time, minutes below 90%, and CSV export. Uses the same read-only scope as heart rate, so there's nothing new to authorize.
 - **Live.** A phone page that reads the band directly over Web Bluetooth and shows a huge zone-colored bpm, a rolling chart and live time in zones.
 
 Data comes from the **Google Health API v4**, read-only. The app never writes, edits or deletes anything in Google Health.
@@ -15,7 +16,7 @@ Data comes from the **Google Health API v4**, read-only. The app never writes, e
 | Network | The container port is bound to `127.0.0.1` only. You reach it through `tailscale serve`, which is visible to your tailnet only. No `tailscale funnel`, port forwards, webhooks, public callbacks or tunnels. The app makes outbound calls to Google only. |
 | Login | None. Anyone on your tailnet who can reach the address can use it, so keep the tailnet to your own devices. |
 | Secrets | The OAuth client ID and secret live in `.env`, and the refresh token in `data/token.json` (mode 600). Neither is in the repo. Don't share them. |
-| Your data | Workouts, samples, pins, tags and settings stay in a local SQLite file in `data/`. Pins and tags are never sent to Google. |
+| Your data | Workouts, HR and SpO2 samples, pins, tags and settings stay in a local SQLite file in `data/`. Pins and tags are never sent to Google. |
 | Live page | Readings go from the band to your phone's browser and nowhere else. Nothing from a live session is saved. |
 | Sync | Sync runs only while the app is open (on load and when you tap **Sync now**). There is no background job. |
 

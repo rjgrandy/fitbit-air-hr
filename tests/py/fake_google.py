@@ -40,6 +40,9 @@ class FakeGoogle:
         self.on_backoff = None
         self.hr_calls = []
         self.token = True
+        self.spo2 = []        # [(epoch_s, pct)]
+        self.spo2_daily = {}  # 'YYYY-MM-DD' -> (avg, lower, upper)
+        self.spo2_calls = []
 
     def _tick(self):
         self.calls += 1
@@ -90,4 +93,22 @@ class FakeGoogle:
                     {"heartRateZoneType": "VIGOROUS", "minBeatsPerMinute": "132", "maxBeatsPerMinute": "161"},
                     {"heartRateZoneType": "PEAK", "minBeatsPerMinute": "162", "maxBeatsPerMinute": "220"}]}})
             d += dt.timedelta(days=1)
+        return out
+
+    def oxygen_saturation(self, start, end):
+        self._tick()
+        self.spo2_calls.append((start, end))
+        a = dt.datetime.fromisoformat(start.replace("Z", "+00:00")).timestamp()
+        b = dt.datetime.fromisoformat(end.replace("Z", "+00:00")).timestamp()
+        return [{"oxygenSaturation": {"percentage": p, "sampleTime": {"physicalTime": iso(t), "utcOffset": "-21600s"}}}
+                for t, p in sorted(self.spo2, reverse=True) if a <= t < b]
+
+    def daily_oxygen_saturation(self, a, b):
+        self._tick()
+        out = []
+        for d, (avg, lo, hi) in sorted(self.spo2_daily.items(), reverse=True):
+            if a <= d < b:
+                y, m, dd = map(int, d.split("-"))
+                out.append({"dailyOxygenSaturation": {"date": {"year": y, "month": m, "day": dd},
+                            "averagePercentage": avg, "lowerBoundPercentage": lo, "upperBoundPercentage": hi}})
         return out
