@@ -40,6 +40,24 @@ class ApiError(Exception):
         super().__init__(f"HTTP {status}: {body[:500]}")
         self.status, self.body = status, body
 
+    @property
+    def friendly(self) -> str:
+        """A short, readable explanation for the UI (Google's own message when it sends one)."""
+        if self.status == 0:
+            return f"Couldn't reach Google ({self.body}). Check the server's internet connection, then tap Sync now."
+        msg = self.body
+        try:
+            err = json.loads(self.body).get("error")
+            msg = err.get("message") or err.get("status") or msg if isinstance(err, dict) else (err or msg)
+        except (ValueError, AttributeError):
+            pass
+        msg = " ".join(str(msg).split())[:300]
+        if self.status == 403 and ("SERVICE_DISABLED" in self.body or "has not been used" in self.body):
+            return "The Google Health API isn't enabled in your Google Cloud project. Enable it, then tap Sync now."
+        if self.status >= 500:
+            return f"Google Health is having trouble right now (HTTP {self.status}). Try Sync now again later."
+        return f"HTTP {self.status}: {msg}" if msg else f"HTTP {self.status}"
+
 
 class RateLimited(ApiError):
     pass
@@ -137,6 +155,14 @@ class GoogleHealth:
         self._save_token(new)
         return new["access_token"]
 
+    def _forget_access_token(self) -> None:
+        try:
+            tok = json.loads(self.token_path.read_text())
+            tok.pop("access_token", None)
+            self._save_token(tok)
+        except (OSError, ValueError):
+            pass
+
     def _mark_revoked(self) -> None:
         try:
             tok = json.loads(self.token_path.read_text())
@@ -204,7 +230,14 @@ class GoogleHealth:
             return urllib.request.Request(url, method="GET", headers={
                 "Authorization": f"Bearer {self._access_token()}", "Accept": "application/json"})
         try:
-            return self._request(make)
+            try:
+                return self._request(make)
+            except ApiError as e:
+                if e.status != 401:
+                    raise
+                # The cached access token may have been invalidated early: refresh once and retry.
+                self._forget_access_token()
+                return self._request(make)
         except ApiError as e:
             if e.status == 401:
                 raise AuthRequired("Google rejected the access token. Re-authorize to continue.")
