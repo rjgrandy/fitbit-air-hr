@@ -1,0 +1,62 @@
+from fastapi.testclient import TestClient
+
+from app.db import DB
+from app.main import create_app
+from fake_google import FakeGoogle
+
+
+class G(FakeGoogle):
+    configured = True
+
+    def was_revoked(self):
+        return not self.token
+
+    def auth_url(self):
+        return "https://accounts.google.com/o/oauth2/v2/auth?x=1"
+
+    def exchange_code(self, code):
+        if code != "good":
+            raise ValueError("bad code")
+        self.token = True
+        return {}
+
+
+def client(n=5, token=True):
+    g = G(n_workouts=n)
+    g.token = token
+    app = create_app(DB(":memory:"), g)
+    app.state.sync.run()
+    return TestClient(app), app
+
+
+def test_status_and_list_and_hr():
+    c, app = client(5)
+    st = c.get("/api/status").json()
+    assert st["auth"] == "ok" and st["sync"]["workout_count"] == 5
+    ws = c.get("/api/workouts").json()
+    assert len(ws) == 5 and ws[0]["start_ts"] > ws[-1]["start_ts"]
+    assert ws[0]["zones_source"] == "google" and len(ws[0]["zones"]) == 4
+    hr = c.get("/api/hr", params={"ids": ws[0]["id"]}).json()[ws[0]["id"]]
+    assert len(hr["t"]) == len(hr["bpm"]) > 0
+    assert sum(hr["time_in_zones"].values()) > 0
+
+
+def test_fallback_zones_follow_settings():
+    c, app = client(2)
+    app.state.db.x("UPDATE workouts SET zones_json=NULL")
+    c.put("/api/settings", json={"fallback_max_hr": 200})
+    w = c.get("/api/workouts").json()[0]
+    assert w["zones_source"] == "fallback" and w["zones"][0]["min"] == 100
+
+
+def test_settings_validation():
+    c, _ = client(1)
+    assert c.put("/api/settings", json={"y_min": 150, "y_max": 100}).status_code == 400
+    assert c.put("/api/settings", json={"y_min": 40, "y_max": 210}).json()["y_max"] == 210
+
+
+def test_revoked_shows_reauthorize_and_code_flow():
+    c, app = client(0, token=False)
+    assert c.get("/api/status").json()["auth"] == "revoked"
+    assert c.post("/api/auth/code", json={"code": "nope"}).status_code == 400
+    assert c.post("/api/auth/code", json={"code": "good"}).json()["ok"] is True

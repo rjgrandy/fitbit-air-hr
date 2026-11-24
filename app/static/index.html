@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Workouts · Fitbit Air HR</title>
+<link rel="stylesheet" href="vendor/uPlot.min.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>Workouts</h1>
+  <div class="sync">
+    <span id="syncLabel" class="muted">…</span>
+    <button id="syncNow" class="btn small">Sync now</button>
+  </div>
+  <nav class="links">
+    <a href="live-test.html" class="btn small ghost">Live</a>
+    <button id="openSettings" class="btn small ghost" aria-label="Settings">Settings</button>
+  </nav>
+</header>
+
+<div id="progress" class="progress" hidden><div class="bar"><span></span></div><div class="msg"></div></div>
+<div id="banner" class="banner" hidden></div>
+
+<section class="controls" aria-label="Filters and display">
+  <label>Activity
+    <select id="fType"><option value="">All activities</option></select>
+  </label>
+  <label>From <input type="date" id="fFrom"></label>
+  <label>To <input type="date" id="fTo"></label>
+  <label class="disabled" title="Tags arrive in milestone 5">Tag
+    <select id="fTag" disabled><option value="">All tags</option></select>
+  </label>
+  <label class="check disabled" title="Pins arrive in milestone 5"><input type="checkbox" id="fPinned" disabled> Pinned only</label>
+  <button id="fClear" class="btn small ghost">Clear filters</button>
+  <div class="seg" role="group" aria-label="X axis">
+    <button data-axis="shared" class="seg-btn">Shared scale</button>
+    <button data-axis="fit" class="seg-btn">Fit to width</button>
+  </div>
+  <label class="slider">Row height
+    <input type="range" id="rowH" min="40" max="320" step="10">
+  </label>
+</section>
+
+<div id="count" class="muted count"></div>
+<main id="list" class="list"></main>
+<div id="empty" class="empty" hidden></div>
+
+<dialog id="settings">
+  <form method="dialog" id="settingsForm">
+    <h2>Settings</h2>
+    <fieldset>
+      <legend>Y-axis range (same on every row)</legend>
+      <label>Min bpm <input type="number" name="y_min" min="0" max="250" required></label>
+      <label>Max bpm <input type="number" name="y_max" min="10" max="260" required></label>
+    </fieldset>
+    <fieldset>
+      <legend>Fallback zones</legend>
+      <label>Max heart rate <input type="number" name="fallback_max_hr" min="100" max="240" required></label>
+      <p class="muted small">Used only for workouts with no Google Health zones: Light 50%, Moderate 60%, Vigorous 70%, Peak 85% of max.</p>
+    </fieldset>
+    <p id="settingsErr" class="error small" hidden></p>
+    <div class="actions">
+      <button value="cancel" class="btn ghost" formnovalidate>Cancel</button>
+      <button id="saveSettings" value="save" class="btn">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<template id="rowTpl">
+  <article class="row">
+    <a class="row-head">
+      <span class="date"></span>
+      <span class="time muted"></span>
+      <span class="type"></span>
+      <span class="stat dur"></span>
+      <span class="stat avg"></span>
+      <span class="stat max"></span>
+      <span class="spacer"></span>
+      <span class="pin-slot" title="Pins arrive in milestone 5">☆</span>
+      <button class="png btn tiny ghost" title="Save this chart as PNG">PNG</button>
+    </a>
+    <div class="chart"><div class="placeholder muted"></div><div class="tip" hidden></div></div>
+    <div class="tiz"></div>
+  </article>
+</template>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

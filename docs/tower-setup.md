@@ -16,6 +16,15 @@ wget -qO- "https://github.com/rjgrandy/fitbit-air-hr/archive/refs/heads/$BRANCH.
 
 This leaves `.env` and `data/` alone, so you can re-run it later to update.
 
+The container runs as user 1000, so give it the data folder (needed once, e.g. after running the
+milestone 1 probe as root, which left `data/token.json` owned by root):
+
+```bash
+mkdir -p data && chown -R 1000:1000 data
+```
+
+If `data/token.json` from the milestone 1 probe is there, the app reuses it and you don't need to authorize again.
+
 `.env` (copy `.env.example`, `chmod 600 .env`) holds the Google client ID and secret. It is never committed.
 
 ## 2. Build and start the container
@@ -75,3 +84,23 @@ curl -m 5 http://<tower-lan-ip>:8787/    # must fail (connection refused / timeo
 4. You should see the bpm number update with every beat, plus raw packets in the log.
 
 Live data stays between the phone and the band. The server only serves the page.
+
+## Updating
+
+```bash
+cd /mnt/user/appdata/fitbit-air
+wget -qO- https://github.com/rjgrandy/fitbit-air-hr/archive/refs/heads/main.tar.gz | tar xz --strip-components=1
+docker compose up -d --build
+```
+
+Your workouts, settings and Google token live in `data/` and survive updates. `tailscale serve` doesn't need re-running.
+
+## Backing up
+
+Everything is in `/mnt/user/appdata/fitbit-air/data/` (`fitbit-air-hr.sqlite3` plus `token.json`). For a consistent copy while it runs:
+
+```bash
+docker exec fitbit-air-hr python -c "import sqlite3;s=sqlite3.connect('/data/fitbit-air-hr.sqlite3');d=sqlite3.connect('/data/backup.sqlite3');s.backup(d)"
+```
+
+Or stop the container and copy the folder. The Unraid "Appdata Backup" plugin also covers it.
