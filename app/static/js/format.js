@@ -4,6 +4,9 @@ export const ZONE_ORDER = ["below", "LIGHT", "MODERATE", "VIGOROUS", "PEAK"];
 export const ZONE_LABEL = { below: "Below", LIGHT: "Light", MODERATE: "Moderate", VIGOROUS: "Vigorous", PEAK: "Peak" };
 export const ZONE_VAR = { below: "--z-below", LIGHT: "--z-light", MODERATE: "--z-moderate", VIGOROUS: "--z-vigorous", PEAK: "--z-peak" };
 
+/** Escape text for use inside HTML (element content or a quoted attribute). */
+export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
 export function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
