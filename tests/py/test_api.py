@@ -77,3 +77,12 @@ def test_detail_and_exports():
     assert len(j["samples"]) == len(d["t"])
     assert j["samples"][0]["time_local"][-6:] in ("-06:00", "-05:00")
     assert c.get("/api/workouts/nope").status_code == 404
+
+
+def test_current_zones_for_live_page():
+    c, app = client(3)
+    z = c.get("/api/zones/current").json()
+    assert z["source"] == "google" and [x["type"] for x in z["zones"]] == ["LIGHT", "MODERATE", "VIGOROUS", "PEAK"]
+    app.state.db.x("DELETE FROM daily_zones")
+    z = c.get("/api/zones/current").json()
+    assert z["source"] == "fallback" and z["zones"][-1]["max"] == 190
