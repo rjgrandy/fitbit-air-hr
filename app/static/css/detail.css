@@ -6,7 +6,9 @@
 .stat-box { display: flex; flex-direction: column; }
 .stat-box .k { font-size: .75rem; color: var(--muted); }
 .stat-box .v { font-size: 1.2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.meta-row { display: flex; gap: 14px; align-items: center; }
+.meta-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.picker-filters label.check { display: flex; align-items: center; gap: 6px; font-size: .9rem; color: var(--fg); flex-direction: row; }
+.picker-filters label.check input { width: auto; min-height: 0; }
 
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
 .card h2 { font-size: 1rem; margin: 0 0 8px; }

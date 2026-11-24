@@ -46,11 +46,39 @@ CREATE TABLE IF NOT EXISTS daily_zones (
     zones_json TEXT NOT NULL
 );
 
+-- Local-only annotations. Never sent to Google. Deliberately no foreign key to workouts,
+-- so nothing a sync or a full re-backfill does to the workouts table can remove them.
+CREATE TABLE IF NOT EXISTS workout_pins (
+    workout_id TEXT PRIMARY KEY,
+    pinned_at  INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS workout_tags (
+    workout_id TEXT NOT NULL,
+    tag        TEXT NOT NULL COLLATE NOCASE,
+    PRIMARY KEY (workout_id, tag)
+);
+CREATE INDEX IF NOT EXISTS workout_tags_tag ON workout_tags(tag);
+
 CREATE TABLE IF NOT EXISTS kv (
     key   TEXT PRIMARY KEY,
     value TEXT
 );
 """
+
+MAX_TAG_LEN = 40
+MAX_TAGS = 20
+
+
+def normalize_tags(tags) -> list[str]:
+    """Trim, collapse whitespace, cap length, drop empties and case-insensitive duplicates."""
+    out, seen = [], set()
+    for t in tags or []:
+        t = " ".join(str(t).split())[:MAX_TAG_LEN]
+        if t and t.lower() not in seen:
+            seen.add(t.lower())
+            out.append(t)
+    return out[:MAX_TAGS]
+
 
 DEFAULT_SETTINGS = {"y_min": 50, "y_max": 200, "fallback_max_hr": 190}
 
@@ -152,6 +180,45 @@ class DB:
                       avg_hr,max_hr,min_hr,sample_count,hr_status,zones_json,zones_date
                FROM workouts ORDER BY start_ts DESC""")
         return [dict(r) for r in rows]
+
+    # ---- pins & tags (local only) ----
+    def set_pinned(self, workout_id: str, pinned: bool, now: int) -> None:
+        if pinned:
+            self.x("INSERT OR IGNORE INTO workout_pins(workout_id,pinned_at) VALUES(?,?)", (workout_id, now))
+        else:
+            self.x("DELETE FROM workout_pins WHERE workout_id=?", (workout_id,))
+
+    def set_tags(self, workout_id: str, tags: list[str]) -> list[str]:
+        clean = normalize_tags(tags)
+        with self.lock:
+            self.conn.execute("BEGIN")
+            try:
+                self.conn.execute("DELETE FROM workout_tags WHERE workout_id=?", (workout_id,))
+                self.conn.executemany("INSERT OR IGNORE INTO workout_tags(workout_id,tag) VALUES(?,?)",
+                                      [(workout_id, t) for t in clean])
+                self.conn.execute("COMMIT")
+            except Exception:
+                self.conn.execute("ROLLBACK")
+                raise
+        return self.tags_for(workout_id)
+
+    def tags_for(self, workout_id: str) -> list[str]:
+        return [r["tag"] for r in self.q("SELECT tag FROM workout_tags WHERE workout_id=? ORDER BY tag", (workout_id,))]
+
+    def is_pinned(self, workout_id: str) -> bool:
+        return bool(self.q("SELECT 1 FROM workout_pins WHERE workout_id=?", (workout_id,)))
+
+    def all_tags(self) -> list[dict]:
+        """Existing tags with usage counts (for autocomplete). Uses the first-seen spelling."""
+        return [dict(r) for r in self.q(
+            "SELECT MIN(tag) AS tag, COUNT(*) AS count FROM workout_tags GROUP BY tag COLLATE NOCASE ORDER BY count DESC, tag")]
+
+    def annotations(self) -> tuple[set[str], dict[str, list[str]]]:
+        pins = {r["workout_id"] for r in self.q("SELECT workout_id FROM workout_pins")}
+        tags: dict[str, list[str]] = {}
+        for r in self.q("SELECT workout_id, tag FROM workout_tags ORDER BY tag"):
+            tags.setdefault(r["workout_id"], []).append(r["tag"])
+        return pins, tags
 
     def workout(self, workout_id: str) -> dict | None:
         r = self.q("SELECT * FROM workouts WHERE id=?", (workout_id,))

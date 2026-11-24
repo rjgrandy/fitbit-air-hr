@@ -1,5 +1,6 @@
 // Main page: one continuous list of workouts, newest first, each with its own HR chart.
 import { makeRowChart } from "./rowchart.js";
+import { pinButton, tagEditor, refreshTagSuggestions } from "./tags.js";
 import {
   ZONE_ORDER, ZONE_LABEL, zoneColor, setTimeZone, fmtDate, fmtTime, fmtDuration, fmtMinutes, prettyType, relTime, esc,
 } from "./format.js";
@@ -9,7 +10,7 @@ const COMPACT_BELOW = 90; // px row height under which rows become sparklines (n
 
 // ---------------------------------------------------------------- prefs ----
 const PREFS_KEY = "fahr.prefs.v1";
-const prefs = Object.assign({ type: "", from: "", to: "", axis: "shared", rowH: 140 }, loadPrefs());
+const prefs = Object.assign({ type: "", from: "", to: "", tag: "", pinned: false, axis: "shared", rowH: 140 }, loadPrefs());
 function loadPrefs() { try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch { return {}; } }
 function savePrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* private mode */ } }
 
@@ -117,11 +118,21 @@ function renderTiz(r, d) {
 function buildRow(w) {
   const el = $("rowTpl").content.firstElementChild.cloneNode(true);
   el.dataset.id = w.id;
-  const head = el.querySelector(".row-head");
-  head.href = `workout.html?id=${encodeURIComponent(w.id)}`;
+  const href = `workout.html?id=${encodeURIComponent(w.id)}`;
+  el.querySelector(".open").href = href;
+  // Tapping the row (header, zone bar, or the chart with a mouse) opens the detail page.
+  // On touch screens a tap on the chart shows the tooltip instead.
+  // Ctrl/Cmd/Shift/middle clicks open a new tab, like a normal link, instead of leaving the list.
+  const go = (e) => { if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) window.open(href, "_blank"); else location.href = href; };
+  // Clicks on the link itself are left to the browser.
+  el.querySelector(".row-head").addEventListener("click", (e) => { if (!e.defaultPrevented && !e.target.closest("a")) go(e); });
+  el.querySelector(".tiz").addEventListener("click", go);
+  el.querySelector(".chart").addEventListener("click", (e) => { if (e.pointerType === "mouse") go(e); });
   fillHead(el, w);
   el.querySelector(".png").addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); exportPng(w.id); });
   const r = { el, w, chart: null, visible: false };
+  pinButton(el.querySelector(".pin"), { id: w.id, pinned: w.pinned, onChange: (p) => { r.w.pinned = p; syncAnnotation(w.id, { pinned: p }); } });
+  r.tagEd = tagEditor(el.querySelector(".row-tags"), { id: w.id, tags: w.tags, onChange: (t) => { r.w.tags = t; syncAnnotation(w.id, { tags: t }); } });
   setPlaceholder(r, w.hr_status === "pending" ? "Loading heart rate…" : "");
   rows.set(w.id, r);
   io.observe(el);
@@ -137,9 +148,20 @@ function fillHead(el, w) {
   el.querySelector(".max").innerHTML = w.max_hr ? `max <b>${w.max_hr}</b>` : "max –";
 }
 
+// Keep the master list in step with a pin/tag edit, and refresh the tag filter options.
+function syncAnnotation(id, patch) {
+  const w = workouts.find((x) => x.id === id);
+  if (w) Object.assign(w, patch);
+  if (patch.tags) fillTagFilter();
+  if ((patch.pinned === false && prefs.pinned) || (patch.tags && prefs.tag)) renderList();
+}
+
 function applyFilters() {
+  const tag = prefs.tag.toLowerCase();
   visibleList = workouts.filter((w) =>
     (!prefs.type || w.activity_type === prefs.type) &&
+    (!prefs.pinned || w.pinned) &&
+    (!tag || w.tags.some((t) => t.toLowerCase() === tag)) &&
     (!prefs.from || w.civil_date >= prefs.from) &&
     (!prefs.to || w.civil_date <= prefs.to));
 }
@@ -154,6 +176,10 @@ function renderList() {
   }
   for (const w of visibleList) {
     let r = rows.get(w.id);
+    if (r && (r.w.pinned !== w.pinned || r.w.tags.join("\u0000") !== w.tags.join("\u0000"))) {
+      pinButton(r.el.querySelector(".pin"), { id: w.id, pinned: w.pinned, onChange: (p) => { r.w.pinned = p; syncAnnotation(w.id, { pinned: p }); } });
+      r.tagEd.set(w.tags);
+    }
     if (!r) r = buildRow(w);
     else if (r.w.hr_status !== w.hr_status || r.w.max_hr !== w.max_hr || r.w.zones_date !== w.zones_date ||
              r.w.duration_s !== w.duration_s) {
@@ -198,7 +224,22 @@ function updateEmpty() {
 async function loadWorkouts() {
   workouts = await api("/api/workouts");
   fillTypeFilter();
+  fillTagFilter();
   renderList();
+}
+
+function fillTagFilter() {
+  const counts = new Map();
+  for (const w of workouts) for (const t of w.tags) {
+    const k = t.toLowerCase();
+    const c = counts.get(k) || { tag: t, n: 0 }; c.n++; counts.set(k, c);
+  }
+  const tags = [...counts.values()].sort((a, b) => a.tag.localeCompare(b.tag));
+  if (prefs.tag && !counts.has(prefs.tag.toLowerCase())) tags.push({ tag: prefs.tag, n: 0 });
+  const sel = $("fTag");
+  sel.innerHTML = `<option value="">All tags</option>` +
+    tags.map((t) => `<option value="${escapeHtml(t.tag)}">${escapeHtml(t.tag)} (${t.n})</option>`).join("");
+  sel.value = prefs.tag;
 }
 
 function fillTypeFilter() {
@@ -386,9 +427,12 @@ function initControls() {
   $("fFrom").value = prefs.from; $("fTo").value = prefs.to;
   $("fFrom").onchange = (e) => { prefs.from = e.target.value; apply(); };
   $("fTo").onchange = (e) => { prefs.to = e.target.value; apply(); };
+  $("fTag").onchange = (e) => { prefs.tag = e.target.value; apply(); };
+  $("fPinned").checked = prefs.pinned;
+  $("fPinned").onchange = (e) => { prefs.pinned = e.target.checked; apply(); };
   $("fClear").onclick = () => {
-    prefs.type = prefs.from = prefs.to = "";
-    $("fType").value = $("fFrom").value = $("fTo").value = "";
+    prefs.type = prefs.from = prefs.to = prefs.tag = ""; prefs.pinned = false;
+    $("fType").value = $("fFrom").value = $("fTo").value = $("fTag").value = ""; $("fPinned").checked = false;
     apply();
   };
 
@@ -443,6 +487,7 @@ function initControls() {
 // ------------------------------------------------------------------ boot ----
 (async function boot() {
   initControls();
+  refreshTagSuggestions();
   const st = await api("/api/status").catch(() => null);
   if (st) { currentTz = st.tz; setTimeZone(st.tz); settings = st.settings; }  // before the first render
   try { await loadWorkouts(); } catch (e) { showBanner("error", `Can't load workouts: ${e.message}`); }
