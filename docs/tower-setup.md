@@ -49,12 +49,13 @@ and **HTTPS Certificates** is enabled.
 On Tower (Tailscale installed on the host: the Unraid 7 built-in Tailscale or the Tailscale plugin):
 
 ```bash
-tailscale serve --bg http://127.0.0.1:8787
+tailscale serve --bg --https=8443 http://127.0.0.1:8787
 tailscale serve status
 ```
 
-`status` shows the address, e.g. `https://tower.<your-tailnet>.ts.net/`. The setting persists across reboots.
-Turn it off with `tailscale serve --https=443 off`.
+Port 8443 is used because Unraid's own web UI already answers on 443 at Tower's Tailscale address.
+`status` shows the address: `https://tower.<your-tailnet>.ts.net:8443/`. The setting persists across reboots.
+Turn it off with `tailscale serve --https=8443 off`.
 
 Make sure Funnel is **not** on: `tailscale funnel status` should list nothing.
 
@@ -68,7 +69,7 @@ curl -m 5 http://<tower-lan-ip>:8787/    # must fail (connection refused / timeo
 
 ## 5. Live heart-rate test (milestone 2)
 
-1. On your Android phone, connect Tailscale and open `https://tower.<your-tailnet>.ts.net/` in **Chrome**.
+1. On your Android phone, connect Tailscale and open `https://tower.<your-tailnet>.ts.net:8443/` in **Chrome**.
 2. Start heart-rate sharing on the Fitbit Air (from the Google Health app or the band).
 3. Tap **Connect** and pick the band. If it doesn't appear, tap **Connect (show all devices)** instead.
 4. You should see the bpm number update with every beat, plus raw packets in the log.

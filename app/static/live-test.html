@@ -103,16 +103,34 @@ async function pick(showAll) {
   const opts = showAll
     ? { acceptAllDevices: true, optionalServices: [HR_SERVICE] }
     : { filters: [{ services: [HR_SERVICE] }] };
+  let picked;
   try {
-    device = await navigator.bluetooth.requestDevice(opts);
+    picked = await navigator.bluetooth.requestDevice(opts);
   } catch (e) {
     if (e.name === "NotFoundError") { setStatus("No device chosen"); return; }
     setStatus(`Picker failed: ${e.message}`, "bad"); log(`picker error: ${e.name}: ${e.message}`); return;
   }
+  teardown();  // never leave a previous band attached when switching devices
+  device = picked;
   $("dev").textContent = `${device.name || "(no name)"} · ${device.id}`;
   device.addEventListener("gattserverdisconnected", onDisconnected);
   userDisconnect = false;
   await connect();
+}
+
+let characteristic = null;
+function teardown() {
+  if (!device) return;
+  userDisconnect = true;
+  device.removeEventListener("gattserverdisconnected", onDisconnected);
+  characteristic?.removeEventListener("characteristicvaluechanged", onPacket);
+  characteristic = null;
+  if (device.gatt.connected) device.gatt.disconnect();
+  device = null;
+}
+function setConnected(on) {
+  $("connect").disabled = $("connectAll").disabled = on;
+  $("disconnect").hidden = !on;
 }
 
 async function connect() {
@@ -120,16 +138,19 @@ async function connect() {
   const server = await device.gatt.connect();
   const svc = await server.getPrimaryService(HR_SERVICE);
   const ch = await svc.getCharacteristic(HR_MEASUREMENT);
+  characteristic?.removeEventListener("characteristicvaluechanged", onPacket);
+  characteristic = ch;
   ch.addEventListener("characteristicvaluechanged", onPacket);
   await ch.startNotifications();
   setStatus("Connected, waiting for beats…", "ok");
   log("notifications started on 0x2A37");
-  $("disconnect").hidden = false;
+  setConnected(true);
   $("connect").textContent = "Connect";
 }
 
 async function onDisconnected() {
   $("bpm").innerHTML = '—<small> bpm</small>';
+  setConnected(false);
   if (userDisconnect) { setStatus("Disconnected"); return; }
   log("connection dropped");
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -175,7 +196,8 @@ $("connectAll").addEventListener("click", async () => {
 $("disconnect").addEventListener("click", () => {
   userDisconnect = true;
   if (device?.gatt.connected) device.gatt.disconnect();
-  $("disconnect").hidden = true;
+  setConnected(false);
+  setStatus("Disconnected");
 });
 
 init();
