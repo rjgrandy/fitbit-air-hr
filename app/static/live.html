@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0b0d10" media="(prefers-color-scheme: dark)">
+<title>Live · Fitbit Air HR</title>
+<link rel="stylesheet" href="vendor/uPlot.min.css">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/live.css">
+</head>
+<body class="live">
+<header class="topbar">
+  <a href="./" class="btn small ghost">← Workouts</a>
+  <h1>Live</h1>
+  <span id="status" class="status">Not connected</span>
+  <button id="disconnect" class="btn small ghost" hidden>Disconnect</button>
+</header>
+
+<main class="live-main">
+  <section class="setup" id="setup">
+    <p class="note">Start heart-rate sharing on your Fitbit Air (from the Google Health app or the band) before tapping Connect. Sharing uses more battery.</p>
+    <p id="unsupported" class="note bad" hidden></p>
+    <div class="buttons">
+      <button id="connect" class="btn big">Connect</button>
+      <button id="connectAll" class="btn big ghost" title="Use if the band doesn't show up in the normal picker">Show all devices</button>
+    </div>
+  </section>
+
+  <section class="hero">
+    <div class="bpm-wrap">
+      <div id="bpm" class="bpm">—</div>
+      <div class="bpm-sub"><span id="zoneName">bpm</span></div>
+    </div>
+    <dl class="numbers">
+      <div><dt>Elapsed</dt><dd id="elapsed">0:00</dd></div>
+      <div><dt>Avg</dt><dd id="avg">—</dd></div>
+      <div><dt>Max</dt><dd id="max">—</dd></div>
+    </dl>
+  </section>
+
+  <section class="tiz live-tiz" id="tiz"></section>
+
+  <section class="chart-card">
+    <div class="chart-head">
+      <label class="small muted">Show last
+        <select id="window">
+          <option value="120">2 min</option>
+          <option value="300">5 min</option>
+          <option value="600">10 min</option>
+          <option value="1200">20 min</option>
+          <option value="1800">30 min</option>
+        </select>
+      </label>
+      <span id="zonesNote" class="small muted"></span>
+      <button id="reset" class="btn small ghost" title="Start the elapsed time, average, max and zones over">Reset</button>
+    </div>
+    <div id="chart" class="live-chart"></div>
+  </section>
+
+  <p class="small muted footnote">Live readings stay on this phone and disappear when you leave the page. Nothing is saved.</p>
+</main>
+
+<script type="module" src="js/live.js"></script>
+</body>
+</html>

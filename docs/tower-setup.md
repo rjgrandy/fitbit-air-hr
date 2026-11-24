@@ -10,7 +10,7 @@ Keep everything under `/mnt/user/appdata/fitbit-air` (on Unraid, `/root` is wipe
 
 ```bash
 mkdir -p /mnt/user/appdata/fitbit-air && cd /mnt/user/appdata/fitbit-air
-BRANCH=main   # or a PR branch you're testing, e.g. milestone-2-live-ble
+BRANCH=main   # or a PR branch you're testing, e.g. milestone-6-live-page
 wget -qO- "https://github.com/rjgrandy/fitbit-air-hr/archive/refs/heads/$BRANCH.tar.gz" | tar xz --strip-components=1
 ```
 
@@ -76,14 +76,16 @@ From another device on your home Wi-Fi with Tailscale **off**:
 curl -m 5 http://<tower-lan-ip>:8787/    # must fail (connection refused / timeout)
 ```
 
-## 5. Live heart-rate test (milestone 2)
+## 5. Live heart rate
 
-1. On your Android phone, connect Tailscale and open `https://tower.<your-tailnet>.ts.net:8443/` in **Chrome**.
+1. On your Android phone, connect Tailscale and open `https://tower.<your-tailnet>.ts.net:8443/` in **Chrome**, then tap **Live**.
 2. Start heart-rate sharing on the Fitbit Air (from the Google Health app or the band).
-3. Tap **Connect** and pick the band. If it doesn't appear, tap **Connect (show all devices)** instead.
-4. You should see the bpm number update with every beat, plus raw packets in the log.
+3. Tap **Connect** and pick the band. If it doesn't appear, tap **Show all devices** instead.
+4. The big number is your current bpm, colored by zone. Below it are elapsed time, average, max, time in each zone and a rolling chart (last 10 minutes by default; change it with **Show last**). **Reset** starts the numbers over.
+5. The screen stays on while connected. Turn the phone sideways for a layout with the number and the chart side by side.
+6. If the band drops out, the page says so and retries 5 times. If that fails, tap **Reconnect**.
 
-Live data stays between the phone and the band. The server only serves the page.
+Live data stays between the phone and the band. The server only serves the page and your zones; nothing from a live session is saved.
 
 ## Updating
 

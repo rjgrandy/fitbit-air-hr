@@ -1,0 +1,61 @@
+/* Live page: readable at arm's length, phone first, landscape layout, dark mode via app.css variables. */
+body.live { min-height: 100dvh; }
+.status { font-weight: 700; font-size: .95rem; }
+.status.ok { color: var(--z-moderate); }
+.status.warn { color: var(--z-vigorous); }
+.status.bad { color: var(--error); }
+
+.live-main { padding: 10px 16px 24px; max-width: 1100px; margin: 0 auto;
+             display: grid; gap: 10px; grid-template-columns: 1fr; }
+.note { margin: 0 0 8px; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border);
+        color: var(--muted); font-size: .95rem; }
+.note.bad { color: var(--error); font-weight: 600; }
+.setup .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn.big { font-size: 1.05rem; min-height: 52px; padding: 12px 20px; }
+.is-live .setup { display: none; }  /* keep the screen for the numbers once live; Disconnect sits in the top bar */
+
+.hero { --zc: var(--muted); display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap;
+        background: var(--surface); border: 1px solid var(--border); border-left: 10px solid var(--zc);
+        border-radius: 14px; padding: 6px 18px; }
+.bpm-wrap { display: flex; flex-direction: column; align-items: flex-start; }
+.bpm { font-size: clamp(5.5rem, 32vw, 13rem); font-weight: 800; line-height: .95; color: var(--zc);
+       font-variant-numeric: tabular-nums; letter-spacing: -.03em; transition: color .3s; }
+.bpm-sub { font-size: 1.3rem; font-weight: 700; color: var(--zc); }
+.hero.stale .bpm, .hero.stale .bpm-sub { opacity: .4; }
+.numbers { display: flex; gap: 10px 26px; margin: 0; flex-wrap: wrap; }
+.numbers div { display: flex; flex-direction: column; }
+.numbers dt { font-size: .9rem; color: var(--muted); }
+.numbers dd { margin: 0; font-size: clamp(1.8rem, 8vw, 3rem); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.05; }
+
+.live-tiz { margin: 0; font-size: .95rem; }
+.live-tiz .bar { height: 16px; border-radius: 8px; flex-basis: 100%; }
+.live-tiz .chips { gap: 12px; }
+.live-tiz .chip::before { width: 11px; height: 11px; }
+
+.chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 8px 10px; }
+.chart-head { display: flex; gap: 8px 14px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
+.chart-head label { display: flex; align-items: center; gap: 6px; }
+.chart-head select { font: inherit; font-size: .9rem; color: var(--fg); background: var(--bg);
+                     border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; min-height: 34px; }
+.chart-head #reset { margin-left: auto; }
+.live-chart { position: relative; height: max(220px, 34vh); }
+.footnote { margin: 0; }
+
+/* Phone held sideways: number and stats on the left, chart on the right. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .topbar { padding: 4px 12px; position: static; }
+  .live-main { grid-template-columns: minmax(260px, 38%) 1fr; grid-template-areas:
+      "setup setup" "hero chart" "tiz chart" "foot foot"; padding: 6px 12px 10px; gap: 8px; }
+  .setup { grid-area: setup; }
+  .live-tiz { font-size: .8rem; }
+  .live-tiz .bar { height: 12px; }
+  .chart-head { font-size: .85rem; }
+  .is-live .footnote { display: none; }
+  .hero { grid-area: hero; flex-direction: column; align-items: flex-start; padding: 4px 14px; }
+  .bpm { font-size: clamp(4.5rem, 30vh, 9rem); }
+  .numbers dd { font-size: clamp(1.4rem, 9vh, 2.2rem); }
+  .live-tiz { grid-area: tiz; }
+  .chart-card { grid-area: chart; display: flex; flex-direction: column; }
+  .live-chart { flex: 1; height: auto; min-height: 180px; }
+  .footnote { grid-area: foot; }
+}

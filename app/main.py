@@ -148,6 +148,16 @@ def create_app(db: DB | None = None, client: GoogleHealth | None = None) -> Fast
             raise HTTPException(400, "tags must be a list of strings")
         return {"tags": db.set_tags(wid, tags)}
 
+    @app.get("/api/zones/current")
+    def current_zones():
+        """Most recent Google zones cached by sync (for the Live page), else the max-HR fallback."""
+        r = db.q("SELECT date, zones_json FROM daily_zones ORDER BY date DESC LIMIT 1")
+        if r:
+            return {"zones": json.loads(r[0]["zones_json"]), "source": "google", "date": r[0]["date"],
+                    "settings": db.settings()}
+        s = db.settings()
+        return {"zones": Z.fallback_zones(s["fallback_max_hr"]), "source": "fallback", "date": None, "settings": s}
+
     @app.get("/api/tags")
     def get_tags():
         return db.all_tags()
