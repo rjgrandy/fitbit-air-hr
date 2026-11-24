@@ -1,0 +1,20 @@
+services:
+  fitbit-air-hr:
+    build: .
+    image: fitbit-air-hr:latest
+    container_name: fitbit-air-hr
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      TZ: America/Chicago
+      DATA_DIR: /data
+    volumes:
+      - ./data:/data
+    ports:
+      # Loopback only. Remote access is via `tailscale serve` on the host (tailnet-only HTTPS).
+      # Never change this to 0.0.0.0 or drop the 127.0.0.1 prefix.
+      - "127.0.0.1:8787:8000"
+    mem_limit: 256m
+    cpus: 0.5
