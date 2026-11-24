@@ -22,8 +22,8 @@
     <div class="when"><span id="date"></span> <span id="time" class="muted"></span></div>
     <div class="stats" id="stats"></div>
     <div class="meta-row">
-      <span class="pin-slot muted" title="Pins arrive in milestone 5">☆ Pin</span>
-      <span class="muted small">Tags arrive in milestone 5</span>
+      <button class="pin" id="pin" type="button"></button>
+      <span id="tags"></span>
     </div>
   </section>
 
@@ -67,7 +67,8 @@
     <div class="picker-filters">
       <input type="search" id="pSearch" placeholder="Search by date or activity" autocomplete="off">
       <select id="pType"><option value="">All activities</option></select>
-      <select id="pTag" disabled title="Tags arrive in milestone 5"><option value="">All tags</option></select>
+      <select id="pTag"><option value="">All tags</option></select>
+      <label class="check"><input type="checkbox" id="pPinned"> Pinned</label>
     </div>
     <p class="muted small" id="pCount"></p>
     <ul id="pList" class="picker-list"></ul>

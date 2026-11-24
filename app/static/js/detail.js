@@ -5,6 +5,7 @@ import { toSeries, zoneBandsPlugin, niceSplits } from "./rowchart.js";
 import {
   ZONE_LABEL, zoneColor, cssVar, setTimeZone, fmtDate, fmtTime, fmtDuration, fmtElapsed, fmtMinutes, prettyType,
 } from "./format.js";
+import { pinButton, tagEditor, refreshTagSuggestions } from "./tags.js";
 
 const $ = (id) => document.getElementById(id);
 const OVERLAY_COLORS = ["#8b5cf6", "#06b6d4", "#f97316", "#ec4899", "#84cc16", "#eab308"];
@@ -168,14 +169,17 @@ function removeOverlay(oid) {
 function renderPicker() {
   const q = $("pSearch").value.trim().toLowerCase();
   const type = $("pType").value;
+  const tag = $("pTag").value.toLowerCase();
+  const pinnedOnly = $("pPinned").checked;
   const items = all.filter((w) => w.id !== id && (!type || w.activity_type === type) &&
-    (!q || `${fmtDate(w.start_ts)} ${fmtTime(w.start_ts)} ${prettyType(w.activity_type, w.display_name)} ${w.civil_date}`.toLowerCase().includes(q)));
+    (!tag || w.tags.some((t) => t.toLowerCase() === tag)) && (!pinnedOnly || w.pinned) &&
+    (!q || `${fmtDate(w.start_ts)} ${fmtTime(w.start_ts)} ${prettyType(w.activity_type, w.display_name)} ${w.civil_date} ${w.tags.join(" ")}`.toLowerCase().includes(q)));
   const shown = items.slice(0, 200);
   const sel = new Set(overlays.map((o) => o.id));
   $("pCount").textContent = `${items.length} workouts${items.length > shown.length ? ` (showing first ${shown.length}, refine the search)` : ""} · ${overlays.length}/${MAX_OVERLAYS} selected`;
   $("pList").innerHTML = shown.map((w) => `<li><label>
       <input type="checkbox" value="${w.id}" ${sel.has(w.id) ? "checked" : ""} ${!sel.has(w.id) && overlays.length >= MAX_OVERLAYS ? "disabled" : ""}>
-      <span>${fmtDate(w.start_ts)} · ${prettyType(w.activity_type, w.display_name)}</span>
+      <span>${w.pinned ? "★ " : ""}${fmtDate(w.start_ts)} · ${prettyType(w.activity_type, w.display_name)}${w.tags.length ? ` <span class="muted small">${w.tags.map(escapeHtml).join(", ")}</span>` : ""}</span>
       <span class="sub">${fmtDuration(w.duration_s)}${w.avg_hr ? ` · avg ${w.avg_hr}` : ""}${w.sample_count ? "" : " · no HR"}</span>
     </label></li>`).join("");
   $("pList").querySelectorAll("input").forEach((cb) => cb.onchange = async () => {
@@ -190,8 +194,14 @@ function initPicker() {
   const types = [...new Set(all.map((w) => w.activity_type))].sort((a, b) => prettyType(a).localeCompare(prettyType(b)));
   $("pType").innerHTML = `<option value="">All activities</option>` + types.map((t) => `<option value="${t}">${prettyType(t)}</option>`).join("");
   $("pType").value = W.activity_type;  // most comparisons are like-for-like
+  const tags = new Map();
+  for (const w of all) for (const t of w.tags) if (!tags.has(t.toLowerCase())) tags.set(t.toLowerCase(), t);
+  $("pTag").innerHTML = `<option value="">All tags</option>` +
+    [...tags.values()].sort((a, b) => a.localeCompare(b)).map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
   $("pSearch").oninput = renderPicker;
   $("pType").onchange = renderPicker;
+  $("pTag").onchange = renderPicker;
+  $("pPinned").onchange = renderPicker;
   $("compare").onclick = () => { renderPicker(); $("picker").showModal(); };
 }
 
@@ -274,6 +284,9 @@ function exportPng() {
   }
   $("detail").hidden = false;
   renderSummary(); renderZones(); renderRecovery(); renderLegend(); initPicker();
+  refreshTagSuggestions();
+  pinButton($("pin"), { id, pinned: W.pinned });
+  tagEditor($("tags"), { id, tags: W.tags });
   buildChart();
   $("resetZoom").onclick = () => chart?.setScale("x", { min: 0, max: xMax() });
   $("csv").href = `/api/workouts/${encodeURIComponent(id)}/export.csv`;
@@ -285,3 +298,5 @@ function exportPng() {
   }, 100); }).observe($("bigChart"));
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { buildChart(); renderLegend(); renderZones(); });
 })();
+
+function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }

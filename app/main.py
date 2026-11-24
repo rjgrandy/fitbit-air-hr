@@ -9,6 +9,7 @@ import csv
 import datetime as dt
 import io
 import json
+import time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -74,11 +75,13 @@ def create_app(db: DB | None = None, client: GoogleHealth | None = None) -> Fast
     @app.get("/api/workouts")
     def workouts():
         s = db.settings()
+        pins, tags = db.annotations()
         out = []
         for w in db.workouts():
             zs, src = zones_for(w, s)
             w.pop("zones_json", None)
             w["zones"], w["zones_source"] = zs, src
+            w["pinned"], w["tags"] = w["id"] in pins, tags.get(w["id"], [])
             out.append(w)
         return JSONResponse(out)
 
@@ -128,7 +131,26 @@ def create_app(db: DB | None = None, client: GoogleHealth | None = None) -> Fast
             "zone_breakdown": Z.zone_breakdown(tiz, zs),
             "recovery": Z.recovery_hr(samples, w["end_ts"]),
             "post_window_s": config.POST_WORKOUT_SECONDS,
+            "pinned": db.is_pinned(wid), "tags": db.tags_for(wid),
         }
+
+    @app.put("/api/workouts/{wid}/pin")
+    def put_pin(wid: str, payload: dict = Body(...)):
+        load(wid)
+        db.set_pinned(wid, bool(payload.get("pinned")), int(time.time()))
+        return {"pinned": db.is_pinned(wid)}
+
+    @app.put("/api/workouts/{wid}/tags")
+    def put_tags(wid: str, payload: dict = Body(...)):
+        load(wid)
+        tags = payload.get("tags")
+        if not isinstance(tags, list):
+            raise HTTPException(400, "tags must be a list of strings")
+        return {"tags": db.set_tags(wid, tags)}
+
+    @app.get("/api/tags")
+    def get_tags():
+        return db.all_tags()
 
     def export_rows(w: dict):
         tz = ZoneInfo(config.DISPLAY_TZ)

@@ -30,10 +30,10 @@
   </label>
   <label>From <input type="date" id="fFrom"></label>
   <label>To <input type="date" id="fTo"></label>
-  <label class="disabled" title="Tags arrive in milestone 5">Tag
-    <select id="fTag" disabled><option value="">All tags</option></select>
+  <label>Tag
+    <select id="fTag"><option value="">All tags</option></select>
   </label>
-  <label class="check disabled" title="Pins arrive in milestone 5"><input type="checkbox" id="fPinned" disabled> Pinned only</label>
+  <label class="check"><input type="checkbox" id="fPinned"> Pinned only</label>
   <button id="fClear" class="btn small ghost">Clear filters</button>
   <div class="seg" role="group" aria-label="X axis">
     <button data-axis="shared" class="seg-btn">Shared scale</button>
@@ -71,17 +71,20 @@
 
 <template id="rowTpl">
   <article class="row">
-    <a class="row-head">
-      <span class="date"></span>
-      <span class="time muted"></span>
-      <span class="type"></span>
-      <span class="stat dur"></span>
-      <span class="stat avg"></span>
-      <span class="stat max"></span>
+    <div class="row-head">
+      <a class="open">
+        <span class="date"></span>
+        <span class="time muted"></span>
+        <span class="type"></span>
+        <span class="stat dur"></span>
+        <span class="stat avg"></span>
+        <span class="stat max"></span>
+      </a>
+      <span class="row-tags"></span>
       <span class="spacer"></span>
-      <span class="pin-slot" title="Pins arrive in milestone 5">☆</span>
-      <button class="png btn tiny ghost" title="Save this chart as PNG">PNG</button>
-    </a>
+      <button class="pin" type="button"></button>
+      <button class="png btn tiny ghost" type="button" title="Save this chart as PNG">PNG</button>
+    </div>
     <div class="chart"><div class="placeholder muted"></div><div class="tip" hidden></div></div>
     <div class="tiz"></div>
   </article>

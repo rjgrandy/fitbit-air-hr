@@ -73,7 +73,20 @@ body { margin: 0; background: var(--bg); color: var(--fg);
 .row-head .stat { font-variant-numeric: tabular-nums; color: var(--muted); }
 .row-head .stat b { color: var(--fg); font-weight: 600; }
 .row-head .spacer { flex: 1; }
-.row-head .pin-slot { color: var(--muted); opacity: .5; }
+.row-head .open { display: contents; color: inherit; text-decoration: none; }
+.pin { border: 0; background: transparent; font-size: 1.15rem; line-height: 1; cursor: pointer; color: var(--muted);
+       padding: 2px 4px; min-width: 32px; min-height: 32px; }
+.pin.on { color: #f59e0b; }
+.tags { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.tag { display: inline-flex; align-items: center; gap: 2px; font-size: .75rem; padding: 1px 2px 1px 8px; border-radius: 999px;
+       background: var(--grid); color: var(--fg); border: 1px solid var(--border); }
+.tag button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: .9rem; line-height: 1; padding: 0 4px; }
+.tag-add { border: 1px dashed var(--border); background: transparent; color: var(--muted); font-size: .72rem; border-radius: 999px;
+           padding: 2px 8px; cursor: pointer; }
+.row .tags.empty .tag-add { opacity: .55; }
+.row:hover .tags.empty .tag-add { opacity: 1; }
+.tag-input { font: inherit; font-size: .8rem; width: 110px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--accent);
+             background: var(--surface); color: var(--fg); }
 .chart { position: relative; height: var(--row-h); }
 .chart .placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
                       font-size: .85rem; border-radius: 6px; background: var(--grid); }
