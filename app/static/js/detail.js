@@ -3,7 +3,7 @@
 import uPlot from "../vendor/uPlot.esm.js";
 import { toSeries, zoneBandsPlugin, niceSplits } from "./rowchart.js";
 import {
-  ZONE_LABEL, zoneColor, cssVar, setTimeZone, fmtDate, fmtTime, fmtDuration, fmtElapsed, fmtMinutes, prettyType,
+  ZONE_LABEL, zoneColor, cssVar, setTimeZone, fmtDate, fmtTime, fmtDuration, fmtElapsed, fmtMinutes, prettyType, esc,
 } from "./format.js";
 import { pinButton, tagEditor, refreshTagSuggestions } from "./tags.js";
 
@@ -92,7 +92,9 @@ function readoutPlugin() {
     const parts = [`<b>${fmtElapsed(u.data[0][i] * 60)}</b>`];
     u.series.forEach((s, si) => {
       if (!si || !s.show) return;
-      const v = u.data[si][i];
+      // Overlays have their own sample times, so read each series at its own nearest index.
+      const j = u.cursor.idxs?.[si] ?? i;
+      const v = j == null ? null : u.data[si][j];
       if (v != null) parts.push(`<span style="color:${s.stroke()}">●</span> ${v} bpm`);
     });
     el.innerHTML = parts.join(" &nbsp; ");
@@ -145,8 +147,8 @@ function renderLegend() {
   const el = $("legend");
   if (!overlays.length) { el.innerHTML = ""; return; }
   el.innerHTML = `<span class="item"><span class="sw" style="--c:${cssVar("--line")}"></span>This workout</span>` +
-    overlays.map((o) => `<span class="item"><span class="sw" style="--c:${o.color}"></span>${overlayLabel(o.w)}${o.hr?.t?.length ? "" : ' <span class="muted">(no HR data)</span>'}
-      <button data-rm="${o.id}" title="Remove" aria-label="Remove ${overlayLabel(o.w)}">×</button></span>`).join("");
+    overlays.map((o) => `<span class="item"><span class="sw" style="--c:${o.color}"></span>${esc(overlayLabel(o.w))}${o.hr?.t?.length ? "" : ' <span class="muted">(no HR data)</span>'}
+      <button data-rm="${esc(o.id)}" title="Remove" aria-label="Remove ${esc(overlayLabel(o.w))}">×</button></span>`).join("");
   el.querySelectorAll("[data-rm]").forEach((b) => b.onclick = () => removeOverlay(b.dataset.rm));
 }
 
@@ -178,8 +180,8 @@ function renderPicker() {
   const sel = new Set(overlays.map((o) => o.id));
   $("pCount").textContent = `${items.length} workouts${items.length > shown.length ? ` (showing first ${shown.length}, refine the search)` : ""} · ${overlays.length}/${MAX_OVERLAYS} selected`;
   $("pList").innerHTML = shown.map((w) => `<li><label>
-      <input type="checkbox" value="${w.id}" ${sel.has(w.id) ? "checked" : ""} ${!sel.has(w.id) && overlays.length >= MAX_OVERLAYS ? "disabled" : ""}>
-      <span>${w.pinned ? "★ " : ""}${fmtDate(w.start_ts)} · ${prettyType(w.activity_type, w.display_name)}${w.tags.length ? ` <span class="muted small">${w.tags.map(escapeHtml).join(", ")}</span>` : ""}</span>
+      <input type="checkbox" value="${esc(w.id)}" ${sel.has(w.id) ? "checked" : ""} ${!sel.has(w.id) && overlays.length >= MAX_OVERLAYS ? "disabled" : ""}>
+      <span>${w.pinned ? "★ " : ""}${fmtDate(w.start_ts)} · ${esc(prettyType(w.activity_type, w.display_name))}${w.tags.length ? ` <span class="muted small">${w.tags.map(esc).join(", ")}</span>` : ""}</span>
       <span class="sub">${fmtDuration(w.duration_s)}${w.avg_hr ? ` · avg ${w.avg_hr}` : ""}${w.sample_count ? "" : " · no HR"}</span>
     </label></li>`).join("");
   $("pList").querySelectorAll("input").forEach((cb) => cb.onchange = async () => {
@@ -192,12 +194,12 @@ function renderPicker() {
 
 function initPicker() {
   const types = [...new Set(all.map((w) => w.activity_type))].sort((a, b) => prettyType(a).localeCompare(prettyType(b)));
-  $("pType").innerHTML = `<option value="">All activities</option>` + types.map((t) => `<option value="${t}">${prettyType(t)}</option>`).join("");
+  $("pType").innerHTML = `<option value="">All activities</option>` + types.map((t) => `<option value="${esc(t)}">${esc(prettyType(t))}</option>`).join("");
   $("pType").value = W.activity_type;  // most comparisons are like-for-like
   const tags = new Map();
   for (const w of all) for (const t of w.tags) if (!tags.has(t.toLowerCase())) tags.set(t.toLowerCase(), t);
   $("pTag").innerHTML = `<option value="">All tags</option>` +
-    [...tags.values()].sort((a, b) => a.localeCompare(b)).map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+    [...tags.values()].sort((a, b) => a.localeCompare(b)).map((t) => `<option value="${esc(t)}">${esc(t)}</option>`).join("");
   $("pSearch").oninput = renderPicker;
   $("pType").onchange = renderPicker;
   $("pTag").onchange = renderPicker;
@@ -299,4 +301,3 @@ function exportPng() {
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { buildChart(); renderLegend(); renderZones(); });
 })();
 
-function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }

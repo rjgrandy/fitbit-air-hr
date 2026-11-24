@@ -2,7 +2,7 @@
 import { makeRowChart } from "./rowchart.js";
 import { pinButton, tagEditor, refreshTagSuggestions } from "./tags.js";
 import {
-  ZONE_ORDER, ZONE_LABEL, zoneColor, setTimeZone, fmtDate, fmtTime, fmtDuration, fmtMinutes, prettyType, relTime,
+  ZONE_ORDER, ZONE_LABEL, zoneColor, setTimeZone, fmtDate, fmtTime, fmtDuration, fmtMinutes, prettyType, relTime, esc,
 } from "./format.js";
 
 const $ = (id) => document.getElementById(id);
@@ -122,9 +122,12 @@ function buildRow(w) {
   el.querySelector(".open").href = href;
   // Tapping the row (header, zone bar, or the chart with a mouse) opens the detail page.
   // On touch screens a tap on the chart shows the tooltip instead.
-  el.querySelector(".row-head").addEventListener("click", (e) => { if (!e.defaultPrevented) location.href = href; });
-  el.querySelector(".tiz").addEventListener("click", () => { location.href = href; });
-  el.querySelector(".chart").addEventListener("click", (e) => { if (e.pointerType === "mouse") location.href = href; });
+  // Ctrl/Cmd/Shift/middle clicks open a new tab, like a normal link, instead of leaving the list.
+  const go = (e) => { if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) window.open(href, "_blank"); else location.href = href; };
+  // Clicks on the link itself are left to the browser.
+  el.querySelector(".row-head").addEventListener("click", (e) => { if (!e.defaultPrevented && !e.target.closest("a")) go(e); });
+  el.querySelector(".tiz").addEventListener("click", go);
+  el.querySelector(".chart").addEventListener("click", (e) => { if (e.pointerType === "mouse") go(e); });
   fillHead(el, w);
   el.querySelector(".png").addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); exportPng(w.id); });
   const r = { el, w, chart: null, visible: false };
@@ -246,7 +249,7 @@ function fillTypeFilter() {
   const types = Object.keys(counts).sort((a, b) => prettyType(a).localeCompare(prettyType(b)));
   if (prefs.type && !counts[prefs.type]) types.push(prefs.type);
   sel.innerHTML = `<option value="">All activities</option>` +
-    types.map((t) => `<option value="${t}">${prettyType(t)} (${counts[t] || 0})</option>`).join("");
+    types.map((t) => `<option value="${esc(t)}">${esc(prettyType(t))} (${counts[t] || 0})</option>`).join("");
   sel.value = prefs.type;
 }
 
