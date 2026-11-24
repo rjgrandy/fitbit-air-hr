@@ -174,7 +174,7 @@ class SyncManager:
         except RateLimited:
             self._fail("rate", "Google is rate-limiting requests. Sync paused; it will continue next time.")
         except ApiError as e:
-            self._fail("api", f"Google Health API error: {e}")
+            self._fail("api", f"Google Health API error: {e.friendly}")
         except Exception as e:  # never let the thread die silently
             traceback.print_exc()
             self._fail("api", f"Sync failed: {e}")

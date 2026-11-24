@@ -1,8 +1,8 @@
-# Milestone 1: Google Health API access check
+# Google Cloud and OAuth setup
 
-This script checks that we can read your data before the real app gets built. It only reads. It never writes anything to Google Health.
+Section 1 sets up the Google Cloud project and OAuth client the app needs. Sections 2 and 3 cover `tools/gh_probe.py`, an optional script that checks API access from a terminal (it was the milestone 1 check). The app has its own in-browser sign-in, so you don't need the script to run it. Neither ever writes anything to Google Health.
 
-## What I confirmed in the docs (2026-11-23)
+## API facts (checked against the docs on 2026-11-23)
 
 Sources: the v4 discovery document (`health.googleapis.com/$discovery/rest?version=v4`, revision 20261119) and developers.google.com/health (setup, scopes, data-types, filters, rate-limits, workouts pages).
 
@@ -37,9 +37,9 @@ Rate limits are 300 requests a minute per user. The script backs off exponential
    - Authorized redirect URIs: add exactly `https://www.google.com`
    - Click **Create**, then download the JSON or copy the Client ID and Client secret.
 
-**Prerequisite:** your Google account must already be linked in the Google Health mobile app. Yours is, because the band syncs.
+**Prerequisite:** your Google account must already be linked to your profile in the Google Health mobile app. If the band syncs to that app, it is.
 
-## 2. Run the script
+## 2. Optional: run the probe script
 
 You need Python 3.9 or newer and nothing else. It works on your home server or any computer.
 
@@ -64,12 +64,12 @@ If you'd rather not install Python on the server: `docker run --rm -it -v "$PWD"
 - `workout_hr_samples.json`: every HR sample for the newest workout, plus 3 minutes after it ends (the extra 3 minutes are for recovery HR later). Use `--pick N` to choose a different workout.
 - `hr_zones.json`: your zones for that workout's day, and the latest zones
 
-## 3. What to send back
+## 3. What the probe output tells you
 
-Paste the terminal output from `run`. The things I need to know:
+Things worth checking in the output of `run`:
 - Do the workouts and activity types match what the Google Health app shows?
 - What is the sample count and spacing for a workout? The docs give 1 s storage resolution, but the band may record less often.
-- Did the zones come back? I couldn't find any endpoint for *custom* zones you set yourself. If yours are custom and `hr_zones.json` doesn't match them, tell me.
-- Do the `sources` show duplicate HR streams? If they do, I'll filter to `google-wearables`.
+- Did the zones come back? There's no endpoint for *custom* zones you set yourself, so if yours are custom, `hr_zones.json` won't match them.
+- Do the `sources` show duplicate HR streams?
 
-Please don't send `token.json` or `.env`.
+Don't share `token.json` or `.env` with anyone.
