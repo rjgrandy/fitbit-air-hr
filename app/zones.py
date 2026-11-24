@@ -77,3 +77,44 @@ def sample_stats(samples, start_ts: int, end_ts: int) -> dict:
     if not vals:
         return {"count": 0, "avg": None, "max": None, "min": None}
     return {"count": len(vals), "avg": round(sum(vals) / len(vals)), "max": max(vals), "min": min(vals)}
+
+
+def _value_near(samples, target: int, before: int, after: int):
+    """bpm of the sample closest to `target` within [target-before, target+after], or None."""
+    best = None
+    for t, b in samples:
+        if target - before <= t <= target + after:
+            d = abs(t - target)
+            if best is None or d < best[0]:
+                best = (d, b)
+    return best[1] if best else None
+
+
+def recovery_hr(samples, end_ts: int, tolerance_s: int = 10) -> dict:
+    """Heart-rate recovery: bpm drop 1 and 2 minutes after the workout ends.
+
+    End HR is the sample closest to the end within the last 15 s of the workout. Each recovery point
+    needs a sample within ±`tolerance_s` of end+60 s / end+120 s. A value is None ("not available")
+    when the samples needed for it don't exist.
+    """
+    end_hr = _value_near(samples, end_ts, before=15, after=0)
+    out = {"end_hr": end_hr}
+    for minutes in (1, 2):
+        at = _value_near(samples, end_ts + 60 * minutes, before=tolerance_s, after=tolerance_s)
+        out[f"hr_{minutes}"] = at
+        out[f"drop_{minutes}"] = (end_hr - at) if (end_hr is not None and at is not None) else None
+    return out
+
+
+def zone_breakdown(tiz: dict, zones: list[dict]) -> list[dict]:
+    """Rows of {type, min, max, seconds, pct} for every zone (plus 'below' when non-zero)."""
+    total = sum(tiz.values()) or 0
+    rows = []
+    if tiz.get("below"):
+        rows.append({"type": "below", "min": None, "max": zones[0]["min"] - 1 if zones else None,
+                     "seconds": tiz["below"], "pct": round(100 * tiz["below"] / total, 1) if total else 0})
+    for z in zones:
+        s = tiz.get(z["type"], 0)
+        rows.append({"type": z["type"], "min": z["min"], "max": z["max"], "seconds": s,
+                     "pct": round(100 * s / total, 1) if total else 0})
+    return rows

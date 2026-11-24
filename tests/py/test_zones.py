@@ -64,3 +64,32 @@ def test_sample_stats_only_inside_window():
     s = [(-10, 200), (0, 100), (10, 140), (20, 120), (60, 190)]
     assert Z.sample_stats(s, 0, 30) == {"count": 3, "avg": 120, "max": 140, "min": 100}
     assert Z.sample_stats([], 0, 30)["count"] == 0
+
+
+def test_recovery_hr_drops_at_1_and_2_minutes():
+    end = 1000
+    s = [(990, 150), (998, 152), (1059, 130), (1061, 128), (1120, 110)]
+    r = Z.recovery_hr(s, end)
+    assert r["end_hr"] == 152
+    assert r["hr_1"] == 130 and r["drop_1"] == 22   # 1059 is 1 s from target, 1061 also 1 s: first wins
+    assert r["hr_2"] == 110 and r["drop_2"] == 42
+
+
+def test_recovery_hr_not_available_without_samples():
+    end = 1000
+    assert Z.recovery_hr([(995, 150)], end) == {"end_hr": 150, "hr_1": None, "drop_1": None, "hr_2": None, "drop_2": None}
+    # samples after the end, but nothing near the end itself
+    r = Z.recovery_hr([(900, 150), (1060, 120), (1120, 100)], end)
+    assert r["end_hr"] is None and r["drop_1"] is None and r["drop_2"] is None
+    # 1-minute point exists, 2-minute point is outside the ±10 s tolerance
+    r = Z.recovery_hr([(1000, 150), (1060, 120), (1135, 100)], end)
+    assert r["drop_1"] == 30 and r["drop_2"] is None
+    assert Z.recovery_hr([], end)["drop_1"] is None
+
+
+def test_zone_breakdown_minutes_and_percent():
+    rows = Z.zone_breakdown({"below": 0, "LIGHT": 300, "MODERATE": 600, "VIGOROUS": 300, "PEAK": 0}, GOOGLE)
+    assert [r["type"] for r in rows] == ["LIGHT", "MODERATE", "VIGOROUS", "PEAK"]
+    assert [r["pct"] for r in rows] == [25.0, 50.0, 25.0, 0]
+    rows = Z.zone_breakdown({"below": 60, "LIGHT": 60, "MODERATE": 0, "VIGOROUS": 0, "PEAK": 0}, GOOGLE)
+    assert rows[0]["type"] == "below" and rows[0]["pct"] == 50.0

@@ -60,3 +60,20 @@ def test_revoked_shows_reauthorize_and_code_flow():
     assert c.get("/api/status").json()["auth"] == "revoked"
     assert c.post("/api/auth/code", json={"code": "nope"}).status_code == 400
     assert c.post("/api/auth/code", json={"code": "good"}).json()["ok"] is True
+
+
+def test_detail_and_exports():
+    c, app = client(2)
+    wid = c.get("/api/workouts").json()[0]["id"]
+    d = c.get(f"/api/workouts/{wid}").json()
+    assert d["id"] == wid and len(d["t"]) == len(d["bpm"]) > 0
+    assert {r["type"] for r in d["zone_breakdown"]} >= {"LIGHT", "PEAK"}
+    assert set(d["recovery"]) == {"end_hr", "hr_1", "drop_1", "hr_2", "drop_2"}
+    r = c.get(f"/api/workouts/{wid}/export.csv")
+    assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
+    lines = r.text.strip().splitlines()
+    assert lines[0] == "time_utc,time_local,elapsed_s,bpm,phase" and len(lines) == len(d["t"]) + 1
+    j = c.get(f"/api/workouts/{wid}/export.json").json()
+    assert len(j["samples"]) == len(d["t"])
+    assert j["samples"][0]["time_local"][-6:] in ("-06:00", "-05:00")
+    assert c.get("/api/workouts/nope").status_code == 404

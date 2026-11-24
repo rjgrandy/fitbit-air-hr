@@ -2,13 +2,79 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <title>Workout · Fitbit Air HR</title>
+<link rel="stylesheet" href="vendor/uPlot.min.css">
 <link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/detail.css">
 </head>
 <body>
-<header class="topbar"><h1>Workout</h1><a class="btn small ghost" href="./">Back to list</a></header>
-<p class="empty">The detail page (zoomable chart, zone breakdown, recovery HR, compare, export) arrives in milestone 4.</p>
+<header class="topbar">
+  <a href="./" class="btn small ghost" id="back">← Workouts</a>
+  <h1 id="title">Workout</h1>
+</header>
+
+<div id="banner" class="banner" hidden></div>
+
+<main class="detail" id="detail" hidden>
+  <section class="summary">
+    <div class="when"><span id="date"></span> <span id="time" class="muted"></span></div>
+    <div class="stats" id="stats"></div>
+    <div class="meta-row">
+      <span class="pin-slot muted" title="Pins arrive in milestone 5">☆ Pin</span>
+      <span class="muted small">Tags arrive in milestone 5</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="toolbar">
+      <button id="resetZoom" class="btn small ghost">Reset zoom</button>
+      <button id="compare" class="btn small ghost">Compare…</button>
+      <span class="muted small hint">Drag to zoom · pinch on a phone</span>
+    </div>
+    <div id="legend" class="legend"></div>
+    <div id="readout" class="readout muted">&nbsp;</div>
+    <div id="bigChart" class="big-chart"><div class="placeholder muted" hidden></div></div>
+  </section>
+
+  <div class="grid2">
+    <section class="card">
+      <h2>Time in zones</h2>
+      <table class="zones" id="zoneTable"></table>
+      <p id="zoneNote" class="muted small"></p>
+    </section>
+    <section class="card">
+      <h2>Recovery heart rate</h2>
+      <dl class="recovery" id="recovery"></dl>
+      <p class="muted small">Drop from the heart rate at the end of the workout, measured 1 and 2 minutes later.</p>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Export</h2>
+    <div class="row-actions">
+      <a id="csv" class="btn small ghost" download>Raw HR samples (CSV)</a>
+      <a id="json" class="btn small ghost" download>Raw HR samples (JSON)</a>
+      <button id="png" class="btn small ghost">Chart (PNG)</button>
+    </div>
+  </section>
+</main>
+
+<dialog id="picker" class="picker">
+  <form method="dialog">
+    <h2>Compare with past workouts</h2>
+    <div class="picker-filters">
+      <input type="search" id="pSearch" placeholder="Search by date or activity" autocomplete="off">
+      <select id="pType"><option value="">All activities</option></select>
+      <select id="pTag" disabled title="Tags arrive in milestone 5"><option value="">All tags</option></select>
+    </div>
+    <p class="muted small" id="pCount"></p>
+    <ul id="pList" class="picker-list"></ul>
+    <div class="actions"><button class="btn" value="done">Done</button></div>
+  </form>
+</dialog>
+
+<script type="module" src="js/detail.js"></script>
 </body>
 </html>

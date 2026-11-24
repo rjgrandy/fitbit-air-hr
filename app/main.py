@@ -5,11 +5,15 @@ The live page (Web Bluetooth) runs entirely in the browser and never talks to th
 """
 from __future__ import annotations
 
+import csv
+import datetime as dt
+import io
 import json
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from fastapi import Body, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import config
@@ -98,6 +102,65 @@ def create_app(db: DB | None = None, client: GoogleHealth | None = None) -> Fast
                 "time_in_zones": Z.time_in_zones(samples, zs, w["start_ts"], w["end_ts"], config.GAP_SECONDS),
             }
         return JSONResponse(res)
+
+    DETAIL_FIELDS = ("id", "start_ts", "end_ts", "civil_date", "activity_type", "display_name", "duration_s",
+                     "active_duration_s", "calories", "avg_hr", "max_hr", "min_hr", "sample_count", "hr_status",
+                     "zones_date")
+
+    def load(wid: str) -> dict:
+        w = db.workout(wid)
+        if not w:
+            raise HTTPException(404, "Workout not found")
+        return w
+
+    @app.get("/api/workouts/{wid}")
+    def workout_detail(wid: str):
+        w = load(wid)
+        s = db.settings()
+        samples = db.samples(wid)
+        zs, src = zones_for(w, s)
+        tiz = Z.time_in_zones(samples, zs, w["start_ts"], w["end_ts"], config.GAP_SECONDS)
+        return {
+            **{k: w[k] for k in DETAIL_FIELDS},
+            "zones": zs, "zones_source": src,
+            "t": [t - w["start_ts"] for t, _ in samples], "bpm": [b for _, b in samples],
+            "time_in_zones": tiz,
+            "zone_breakdown": Z.zone_breakdown(tiz, zs),
+            "recovery": Z.recovery_hr(samples, w["end_ts"]),
+            "post_window_s": config.POST_WORKOUT_SECONDS,
+        }
+
+    def export_rows(w: dict):
+        tz = ZoneInfo(config.DISPLAY_TZ)
+        for t, b in db.samples(w["id"]):
+            utc = dt.datetime.fromtimestamp(t, dt.timezone.utc)
+            yield {"time_utc": utc.strftime("%Y-%m-%dT%H:%M:%SZ"), "time_local": utc.astimezone(tz).isoformat(),
+                   "elapsed_s": t - w["start_ts"], "bpm": b,
+                   "phase": "workout" if t < w["end_ts"] else "after"}
+
+    def export_name(w: dict, ext: str) -> str:
+        stamp = dt.datetime.fromtimestamp(w["start_ts"], ZoneInfo(config.DISPLAY_TZ)).strftime("%Y-%m-%d-%H%M")
+        return f"workout-{stamp}-{w['activity_type'].lower()}-hr.{ext}"
+
+    @app.get("/api/workouts/{wid}/export.csv")
+    def export_csv(wid: str):
+        w = load(wid)
+        buf = io.StringIO()
+        wr = csv.DictWriter(buf, fieldnames=["time_utc", "time_local", "elapsed_s", "bpm", "phase"])
+        wr.writeheader()
+        wr.writerows(export_rows(w))
+        return Response(buf.getvalue(), media_type="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename="{export_name(w, "csv")}"'})
+
+    @app.get("/api/workouts/{wid}/export.json")
+    def export_json(wid: str):
+        w = load(wid)
+        body = {"workout": {k: w[k] for k in DETAIL_FIELDS if k not in ("hr_status",)},
+                "start_utc": dt.datetime.fromtimestamp(w["start_ts"], dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "end_utc": dt.datetime.fromtimestamp(w["end_ts"], dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "samples": list(export_rows(w))}
+        return Response(json.dumps(body, indent=1), media_type="application/json",
+                        headers={"Content-Disposition": f'attachment; filename="{export_name(w, "json")}"'})
 
     @app.get("/api/settings")
     def get_settings():

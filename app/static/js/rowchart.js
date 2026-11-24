@@ -23,7 +23,7 @@ export function toSeries(t, bpm, untilSec) {
   return [xs, ys];
 }
 
-function withAlpha(color, alpha) {
+export function withAlpha(color, alpha) {
   // color is #rrggbb
   const m = /^#([0-9a-f]{6})$/i.exec(color);
   if (!m) return color;
@@ -31,7 +31,7 @@ function withAlpha(color, alpha) {
   return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
 }
 
-function zoneBandsPlugin(zones) {
+export function zoneBandsPlugin(zones) {
   return {
     hooks: {
       drawClear: [(u) => {
@@ -106,7 +106,7 @@ export function makeRowChart(el, o) {
   return u;
 }
 
-function niceSplits(min, max, px) {
+export function niceSplits(min, max, px) {
   const n = Math.max(2, Math.min(6, Math.floor(px / 28)));
   const raw = (max - min) / n;
   const step = [10, 20, 25, 50, 100].find((s) => s >= raw) || 100;

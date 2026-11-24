@@ -1,7 +1,7 @@
 // Main page: one continuous list of workouts, newest first, each with its own HR chart.
 import { makeRowChart } from "./rowchart.js";
 import {
-  ZONE_ORDER, ZONE_LABEL, zoneColor, setTimeZone, fmtDate, fmtTime, fmtDuration, fmtMinutes, prettyType, relTime,
+  ZONE_ORDER, ZONE_LABEL, zoneColor, setTimeZone, fmtDate, fmtTime, fmtDuration, fmtMinutes, prettyType, relTime, esc,
 } from "./format.js";
 
 const $ = (id) => document.getElementById(id);
@@ -208,7 +208,7 @@ function fillTypeFilter() {
   const types = Object.keys(counts).sort((a, b) => prettyType(a).localeCompare(prettyType(b)));
   if (prefs.type && !counts[prefs.type]) types.push(prefs.type);
   sel.innerHTML = `<option value="">All activities</option>` +
-    types.map((t) => `<option value="${t}">${prettyType(t)} (${counts[t] || 0})</option>`).join("");
+    types.map((t) => `<option value="${esc(t)}">${esc(prettyType(t))} (${counts[t] || 0})</option>`).join("");
   sel.value = prefs.type;
 }
 
